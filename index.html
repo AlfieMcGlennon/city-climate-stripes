@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>City Climate Bars & Stripes — replicated</title>
-  <meta name="description" content="Interactive city climate bars/stripes with annual & seasonal views. Built as a side project to demonstrate data manipulation and utilising artificial intelligence to create accessible visualisations and dashboards. Note: the Berkeley Earth alignment is relatively heavily filled, and the latitude/longitude alignment of cities is not guaranteed to be 100% accurate. This is intended as a fun visual project; for a more robust dataset and methodology, please refer to the official Climate Stripes website." />
+  <meta name="description" content="Interactive city climate bars/stripes with annual & seasonal views. Built as a side project to demonstrate data manipulation and utilising artificial intelligence to create accessible visualisations and dashboards." />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <style>
     :root { --bg:#0b0c0c; --panel:#111213; --text:#e8eaed; --muted:#aeb4bc; --focus:#2563eb; --border:#2a2f36; }
@@ -34,8 +34,6 @@
     .footer a{color:#9cc0ff;text-decoration:none;border-bottom:1px dotted #9cc0ff}
     .footer a:hover{border-bottom-style:solid}
     .visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
-
-    /* Loading overlay */
     .loading-overlay{position:fixed;inset:0;background:rgba(11,12,16,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .25s ease}
     .loading-overlay.hidden{opacity:0;pointer-events:none}
     .spinner{width:56px;height:56px;border-radius:50%;border:4px solid #2a2f36;border-top-color:#6aa9ff;animation:spin 1s linear infinite;margin-bottom:12px}
@@ -44,7 +42,6 @@
   </style>
 </head>
 <body>
-  <!-- Loading overlay shown during initial preload -->
   <div class="loading-overlay" id="loadingOverlay" aria-live="polite" aria-busy="true">
     <div class="spinner" aria-hidden="true"></div>
     <div id="loadingText">Loading data…</div>
@@ -61,8 +58,8 @@
     <details class="panel" open>
       <summary>About & How to use</summary>
       <div>
-        <p><strong>What this is:</strong> an interactive replication of Ed Hawkins’ climate stripes for cities, with annual & seasonal anomaly views. It was built as a personal side project to showcase data manipulation and how AI can help craft accessible visualisations and dashboards.</p>
-        <p><strong>Data caveats:</strong> the Berkeley Earth city alignment is relatively heavily filled and the city latitude/longitude matching isn’t guaranteed to be perfectly accurate. Treat this as a fun visual exploration rather than a scientific product. For robust data and methodology, see <a href="https://showyourstripes.info" target="_blank" rel="noopener">Climate Stripes (official)</a>.</p>
+        <p><strong>What this is:</strong> an interactive replication of Ed Hawkins' climate stripes for cities, with annual & seasonal anomaly views. It was built as a personal side project to showcase data manipulation and how AI can help craft accessible visualisations and dashboards.</p>
+        <p><strong>Data caveats:</strong> the Berkeley Earth city alignment is relatively heavily filled and the city latitude/longitude matching isn't guaranteed to be perfectly accurate. Treat this as a fun visual exploration rather than a scientific product. For robust data and methodology, see <a href="https://showyourstripes.info" target="_blank" rel="noopener">Climate Stripes (official)</a>.</p>
         <ul>
           <li><strong>Select a country</strong> then a <strong>city</strong>, or use <strong>Search city</strong>.</li>
           <li>Switch <strong>Season</strong> between Annual, DJF, MAM, JJA, SON.</li>
@@ -82,7 +79,6 @@
       </div>
     </details>
 
-    <!-- Controls panel -->
     <section class="panel" aria-labelledby="controls-title">
       <h2 id="controls-title" class="visually-hidden">Controls</h2>
       <div class="controls" role="group" aria-label="Selection and actions">
@@ -138,7 +134,6 @@
       </div>
     </section>
 
-    <!-- Chart card -->
     <article class="card">
       <h2 id="titleA">City</h2>
       <div class="meta" id="metaA">—</div>
@@ -156,7 +151,7 @@
     <p class="footer">
       Author: <strong>Alfie McGlennon</strong><br>
       Data: Berkeley Earth (CC BY-NC 4.0, non-commercial). City metadata: GeoNames (CC BY 4.0). Visualization concept:
-      “climate stripes” by Ed Hawkins (University of Reading). — 
+      "climate stripes" by Ed Hawkins (University of Reading). — 
       <a href="https://berkeleyearth.org" target="_blank" rel="noopener">Berkeley Earth</a> ·
       <a href="https://www.geonames.org" target="_blank" rel="noopener">GeoNames</a> ·
       <a href="https://showyourstripes.info" target="_blank" rel="noopener">Show Your Stripes</a>
@@ -165,12 +160,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" crossorigin="anonymous"></script>
   <script>
-    // ---------- Config ----------
     const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const BARS_INNER_H   = 260;
+    const BARS_INNER_H = 260;
     const STRIPES_HEIGHT = 240;
-    const AXIS_BAND_H    = 24;
+    const AXIS_BAND_H = 24;
     const MARGIN = { top: 10, right: 10, bottom: AXIS_BAND_H + 8, left: 50 };
+    
     function getFixedDomain(baseline){ return baseline === '1961-2010' ? [-1.5, 1.5] : [-2.0, 2.0]; }
 
     function computeDomain(values, baseline, mode){
@@ -188,7 +183,6 @@
       return [Math.min(lo, f0), Math.max(hi, f1)];
     }
 
-    // ---------- Utils ----------
     const makeKey = (city, cc) => `${city}\u2502${cc || ''}`;
     const splitKey = (key) => { const i = key.lastIndexOf('\u2502'); return i >= 0 ? [key.slice(0, i), key.slice(i+1)] : [key, '']; };
     const toBlueRed = (v, domain) => { const [vmin, vmax] = domain; const t = (v - vmin) / (vmax - vmin); return d3.interpolateRdBu(1 - Math.max(0, Math.min(1, t))); };
@@ -198,15 +192,8 @@
     const fmtTick = (v) => (Math.abs(v) >= 1 ? v.toFixed(0) : v.toFixed(1)).replace(/-0\.0?/, '0');
     function forEachBand(n, x0, w, draw){ for (let i=0;i<n;i++){ const xStart = x0 + Math.floor(i * w / n); const xEnd = x0 + Math.floor((i + 1) * w / n); draw(i, xStart, Math.max(1, Math.abs(xEnd - xStart))); } }
 
-    // ---------- Local split-data loader ----------
-    // Files must exist at repo root /split_data/
-    const SPLIT_BASE = new URL('./split_data/', document.baseURI).href;
-    const LONG_PARTS = [
-      'stripes_long_clean_part1.csv',
-      'stripes_long_clean_part2.csv',
-      'stripes_long_clean_part3.csv',
-      'stripes_long_clean_part4.csv'
-    ];
+    const SPLIT_BASE = './split_data/';
+    const LONG_PARTS = ['stripes_long_clean_part1.csv', 'stripes_long_clean_part2.csv', 'stripes_long_clean_part3.csv', 'stripes_long_clean_part4.csv'];
     const SEASON_PARTS = {
       DJF: ['stripes_seasonal_DJF_part1.csv', 'stripes_seasonal_DJF_part2.csv'],
       MAM: ['stripes_seasonal_MAM_part1.csv', 'stripes_seasonal_MAM_part2.csv'],
@@ -214,14 +201,14 @@
       SON: ['stripes_seasonal_SON_part1.csv', 'stripes_seasonal_SON_part2.csv']
     };
 
-    const FETCH_TIMEOUT_MS = 30000; // 30s per file
+    const FETCH_TIMEOUT_MS = 30000;
 
     async function fetchTextWithTimeout(url, timeoutMs=FETCH_TIMEOUT_MS){
       const controller = new AbortController();
-      const id = setTimeout(()=>controller.abort(new Error("Timeout")), timeoutMs);
+      const id = setTimeout(()=>controller.abort(), timeoutMs);
       try{
-        const resp = await fetch(url, { signal: controller.signal, mode: 'cors', credentials: 'omit', cache: 'no-cache' });
-        if(!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+        const resp = await fetch(url, { signal: controller.signal });
+        if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
         return await resp.text();
       } finally {
         clearTimeout(id);
@@ -229,29 +216,30 @@
     }
 
     async function loadLocalCsv(filename, rowParser){
-      const url = `${SPLIT_BASE}${filename}?cb=${Date.now()}`;
+      const url = `${SPLIT_BASE}${filename}`;
       const txt = await fetchTextWithTimeout(url);
       const rows = d3.csvParse(txt, rowParser);
       if (!rows || !rows.length) throw new Error(`Parsed 0 rows for ${filename}`);
       return rows;
     }
 
-    // SAFE MERGE: append rows one-by-one (avoid spread -> "Maximum call stack size exceeded")
+    // FIXED: Use concat in chunks to avoid stack overflow
     async function loadAllParts(parts, rowParser, label){
-      const all = [];
+      const chunks = [];
       for (const p of parts){
         try{
           const rows = await loadLocalCsv(p, rowParser);
-          for (let i = 0; i < rows.length; i++) all.push(rows[i]);
+          chunks.push(rows);
         }catch(e){
           throw new Error(`[${label}] Failed to load ${p}: ${e.message}`);
         }
       }
-      if (!all.length) throw new Error(`[${label}] No rows after merging parts`);
+      // Concatenate arrays efficiently
+      const all = chunks.reduce((acc, chunk) => acc.concat(chunk), []);
+      if (!all.length) throw new Error(`[${label}] No rows after merging`);
       return all;
     }
 
-    // ---------- State & DOM ----------
     const state = {
       meta: [], metaIndex: new Map(),
       dataCache: new Map(),
@@ -264,308 +252,221 @@
       season:document.getElementById('season'), mode:document.getElementById('mode'), baseline:document.getElementById('baseline'), downloadBtn:document.getElementById('downloadBtn'),
       titleA:document.getElementById('titleA'), metaA:document.getElementById('metaA'), yearsA:document.getElementById('yearsA'), canvasA:document.getElementById('canvasA'),
       legendMin:document.getElementById('legendMin'), legendMax:document.getElementById('legendMax'), legendClip:document.getElementById('legendClip'),
-      loadingOverlay:document.getElementById('loadingOverlay'), loadingText:document.getElementById('loadingText'),
+      loadingOverlay:document.getElementById('loadingOverlay'), loadingText:document.getElementById('loadingText'), scaleMode:document.getElementById('scaleMode')
     };
 
-    // ---------- Parsers ----------
     function parseMeta(d){
       const cc = (d.country_code||'').trim().toUpperCase();
       return { city:d.city?.trim(), country:d.country?.trim(), country_code:cc, latitude:+d.latitude, longitude:+d.longitude, population:+d.population||0, timezone:d.timezone?.trim() };
     }
     function validMeta(m){ return !!(m.city && m.country && /^[A-Z]{2}$/.test(m.country_code)); }
+    
     function parseRowFlexible(d){
       const a1raw = d.anomaly_1850_1900 ?? d.anomaly1850_1900 ?? d['anomaly-1850-1900'];
       const a2raw = d.anomaly_1961_2010 ?? d.anomaly1961_2010 ?? d['anomaly-1961-2010'] ?? d.anomaly_1970_2000;
       return { city:d.city?.trim(), cc:(d.country_code ?? d.cc ?? '').trim().toUpperCase(), year:+d.year, a1:(a1raw!==undefined&&a1raw!=='')?+a1raw:NaN, a2:(a2raw!==undefined&&a2raw!=='')?+a2raw:NaN };
     }
 
-    // ---------- Build payload ----------
     async function buildPayload(rows){
-      const byKey = new Map(); let minYear=Infinity, maxYear=-Infinity;
-      for (const r of rows){ if (!Number.isFinite(r.year)) continue;
+      const byKey = new Map(); 
+      let minYear=Infinity, maxYear=-Infinity;
+      
+      for (const r of rows){ 
+        if (!Number.isFinite(r.year)) continue;
         const key=makeKey(r.city, r.cc);
         if(!byKey.has(key)) byKey.set(key, {years:[], a1:[], a2:[]});
         const obj=byKey.get(key);
-        obj.years.push(r.year); obj.a1.push(r.a1); obj.a2.push(r.a2);
-        if(r.year<minYear)minYear=r.year; if(r.year>maxYear)maxYear=r.year;
+        obj.years.push(r.year); 
+        obj.a1.push(r.a1); 
+        obj.a2.push(r.a2);
+        if(r.year<minYear)minYear=r.year; 
+        if(r.year>maxYear)maxYear=r.year;
       }
+      
       for (const obj of byKey.values()){
         const idx = d3.range(obj.years.length).sort((i,j)=>obj.years[i]-obj.years[j]);
-        obj.years = idx.map(i=>obj.years[i]); obj.a1 = idx.map(i=>obj.a1[i]); obj.a2 = idx.map(i=>obj.a2[i]);
+        obj.years = idx.map(i=>obj.years[i]); 
+        obj.a1 = idx.map(i=>obj.a1[i]); 
+        obj.a2 = idx.map(i=>obj.a2[i]);
       }
+      
       return { byKey, minYear, maxYear };
     }
 
-    // ---------- Preload ----------
     async function preloadAll(){
       try{
-        if(el.loadingOverlay){ el.loadingOverlay.classList.remove('hidden'); el.loadingOverlay.setAttribute('aria-busy','true'); }
+        if(el.loadingOverlay){ 
+          el.loadingOverlay.classList.remove('hidden'); 
+          el.loadingOverlay.setAttribute('aria-busy','true'); 
+        }
+        
         if(el.loadingText) el.loadingText.textContent = 'Loading city metadata…';
-
-        // Load metadata from repo root (same origin)
-        const metaUrl = new URL('cities_metadata_clean.csv', document.baseURI).href + '?cb=' + Date.now();
+        const metaUrl = './cities_metadata_clean.csv';
         const metaTxt = await fetchTextWithTimeout(metaUrl);
         const meta = d3.csvParse(metaTxt, parseMeta).filter(validMeta);
         state.meta = meta;
-        state.metaIndex.clear(); for (const m of meta){ state.metaIndex.set(makeKey(m.city, m.country_code), m); }
+        state.metaIndex.clear(); 
+        for (const m of meta){ 
+          state.metaIndex.set(makeKey(m.city, m.country_code), m); 
+        }
 
-        // Annual (split into 4 parts)
-        if(el.loadingText) el.loadingText.textContent = 'Loading annual data…';
+        if(el.loadingText) el.loadingText.textContent = 'Loading annual data (1/4)…';
         const annualRows = await loadAllParts(LONG_PARTS, parseRowFlexible, 'ANNUAL');
-        // console.log('[ANNUAL] rows:', annualRows.length);
+        
+        if(el.loadingText) el.loadingText.textContent = 'Loading seasonal data (2/4)…';
+        const djfRows = await loadAllParts(SEASON_PARTS.DJF, parseRowFlexible, 'DJF');
+        
+        if(el.loadingText) el.loadingText.textContent = 'Loading seasonal data (3/4)…';
+        const mamRows = await loadAllParts(SEASON_PARTS.MAM, parseRowFlexible, 'MAM');
+        
+        if(el.loadingText) el.loadingText.textContent = 'Loading seasonal data (4/4)…';
+        const jjaRows = await loadAllParts(SEASON_PARTS.JJA, parseRowFlexible, 'JJA');
+        const sonRows = await loadAllParts(SEASON_PARTS.SON, parseRowFlexible, 'SON');
 
-        // Seasonal (each split into 2 parts)
-        if(el.loadingText) el.loadingText.textContent = 'Loading seasonal data…';
-        const [djfRows, mamRows, jjaRows, sonRows] = await Promise.all([
-          loadAllParts(SEASON_PARTS.DJF, parseRowFlexible, 'DJF'),
-          loadAllParts(SEASON_PARTS.MAM, parseRowFlexible, 'MAM'),
-          loadAllParts(SEASON_PARTS.JJA, parseRowFlexible, 'JJA'),
-          loadAllParts(SEASON_PARTS.SON, parseRowFlexible, 'SON'),
-        ]);
-
+        if(el.loadingText) el.loadingText.textContent = 'Processing data…';
         const [annual, djf, mam, jja, son] = await Promise.all([
-          buildPayload(annualRows), buildPayload(djfRows), buildPayload(mamRows), buildPayload(jjaRows), buildPayload(sonRows)
+          buildPayload(annualRows), 
+          buildPayload(djfRows), 
+          buildPayload(mamRows), 
+          buildPayload(jjaRows), 
+          buildPayload(sonRows)
         ]);
 
         state.dataCache.set('ANNUAL', annual);
-        state.dataCache.set('DJF', djf); state.dataCache.set('MAM', mam); state.dataCache.set('JJA', jja); state.dataCache.set('SON', son);
+        state.dataCache.set('DJF', djf); 
+        state.dataCache.set('MAM', mam); 
+        state.dataCache.set('JJA', jja); 
+        state.dataCache.set('SON', son);
+        
       } catch(err){
         console.error('Preload error:', err);
-        const msg = (err && err.message) ? err.message : String(err);
-        alert("Data loading failed.\n\n" + msg + "\n\nOpen DevTools → Console for details.");
+        alert("Data loading failed: " + err.message);
       } finally {
-        if(el.loadingOverlay){ el.loadingOverlay.classList.add('hidden'); el.loadingOverlay.setAttribute('aria-busy','false'); }
+        if(el.loadingOverlay){ 
+          el.loadingOverlay.classList.add('hidden'); 
+          el.loadingOverlay.setAttribute('aria-busy','false'); 
+        }
       }
     }
 
-    // ---------- Controls ----------
     function populateCountries(availableKeys){
       const countries = new Set(['ALL']);
-      for (const key of availableKeys){ const m = state.metaIndex.get(key); if (m) countries.add(m.country); }
+      for (const key of availableKeys){ 
+        const m = state.metaIndex.get(key); 
+        if (m) countries.add(m.country); 
+      }
       const opts = Array.from(countries).sort((a,b)=> a==='ALL'?-1: a.localeCompare(b))
         .map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-      const prev = document.getElementById('country').value;
-      document.getElementById('country').innerHTML = opts;
-      document.getElementById('country').value = Array.from(document.getElementById('country').options).some(o=>o.value===prev)?prev:'ALL';
-      state.selCountry = document.getElementById('country').value;
+      const prev = el.country.value;
+      el.country.innerHTML = opts;
+      el.country.value = Array.from(el.country.options).some(o=>o.value===prev)?prev:'ALL';
+      state.selCountry = el.country.value;
     }
 
     function populateCities(availableKeys){
       let rows = [];
       for (const key of availableKeys){
-        const m=state.metaIndex.get(key); if(!m) continue;
+        const m=state.metaIndex.get(key); 
+        if(!m) continue;
         if(state.selCountry!=='ALL' && m.country!==state.selCountry) continue;
         const [city,cc]=splitKey(key);
         rows.push({key, city, cc, pop:m.population, label:`${city} (${cc})`});
       }
       rows.sort((a,b)=> (b.pop-a.pop) || a.city.localeCompare(b.city) || a.cc.localeCompare(b.cc));
-      document.getElementById('city').innerHTML = rows.map(r => `<option value="${escapeHtml(r.key)}">${escapeHtml(r.label)}</option>`).join('');
-      document.getElementById('citylist').innerHTML = rows.map(r => `<option value="${escapeHtml(r.label)}"></option>`).join('');
+      el.city.innerHTML = rows.map(r => `<option value="${escapeHtml(r.key)}">${escapeHtml(r.label)}</option>`).join('');
+      el.datalist.innerHTML = rows.map(r => `<option value="${escapeHtml(r.label)}"></option>`).join('');
       if(rows.length){
-        const prev=document.getElementById('city').value;
-        document.getElementById('city').value = rows.some(r=>r.key===prev)?prev:rows[0].key;
-        state.selKey = document.getElementById('city').value;
+        const prev=el.city.value;
+        el.city.value = rows.some(r=>r.key===prev)?prev:rows[0].key;
+        state.selKey = el.city.value;
       }
     }
 
     function wireControls(){
       const tryApplySearch = () => {
-        const val = document.getElementById('search').value.trim(); if(!val) return;
-        const options = Array.from(document.getElementById('city').options).map(o=>({key:o.value,label:o.textContent}));
+        const val = el.search.value.trim(); 
+        if(!val) return;
+        const options = Array.from(el.city.options).map(o=>({key:o.value,label:o.textContent}));
         const lc=val.toLowerCase();
         const exact = options.find(o=> o.label.toLowerCase()===lc || o.label.toLowerCase().startsWith(lc) || o.key.split('\u2502')[0].toLowerCase()===lc);
-        if(exact){ state.selKey=exact.key; document.getElementById('city').value=exact.key; scheduleRender(); }
+        if(exact){ 
+          state.selKey=exact.key; 
+          el.city.value=exact.key; 
+          scheduleRender(); 
+        }
       };
 
-      document.getElementById('country').addEventListener('change', () => {
-        state.selCountry = document.getElementById('country').value;
+      el.country.addEventListener('change', () => {
+        state.selCountry = el.country.value;
         const { byKey } = state.dataCache.get(state.season);
         populateCities(new Set(byKey.keys()));
         scheduleRender();
       });
-      document.getElementById('city').addEventListener('change', () => { state.selKey = document.getElementById('city').value; scheduleRender(); });
-      document.getElementById('mode').addEventListener('change', () => { state.mode = document.getElementById('mode').value; scheduleRender(); });
-      document.getElementById('baseline').addEventListener('change', () => { state.baseline = document.getElementById('baseline').value; scheduleRender(); });
-      document.getElementById('scaleMode').addEventListener('change', () => { state.scaleMode = document.getElementById('scaleMode').value; scheduleRender(); });
-      document.getElementById('season').addEventListener('change', () => {
-        state.season = document.getElementById('season').value;
+      
+      el.city.addEventListener('change', () => { 
+        state.selKey = el.city.value; 
+        scheduleRender(); 
+      });
+      
+      el.mode.addEventListener('change', () => { 
+        state.mode = el.mode.value; 
+        scheduleRender(); 
+      });
+      
+      el.baseline.addEventListener('change', () => { 
+        state.baseline = el.baseline.value; 
+        scheduleRender(); 
+      });
+      
+      el.scaleMode.addEventListener('change', () => { 
+        state.scaleMode = el.scaleMode.value; 
+        scheduleRender(); 
+      });
+      
+      el.season.addEventListener('change', () => {
+        state.season = el.season.value;
         const { byKey } = state.dataCache.get(state.season);
         const available = new Set(byKey.keys());
-        populateCountries(available); populateCities(available);
+        populateCountries(available); 
+        populateCities(available);
         scheduleRender();
       });
-      document.getElementById('search').addEventListener('keydown', e => { if (e.key === 'Enter') tryApplySearch(); });
-      document.getElementById('search').addEventListener('change', tryApplySearch);
-      document.getElementById('search').addEventListener('input',  tryApplySearch);
+      
+      el.search.addEventListener('keydown', e => { 
+        if (e.key === 'Enter') tryApplySearch(); 
+      });
+      
+      el.search.addEventListener('change', tryApplySearch);
+      el.search.addEventListener('input', tryApplySearch);
 
-      document.getElementById('downloadBtn').addEventListener('click', () => {
+      el.downloadBtn.addEventListener('click', () => {
         const [city, cc] = splitKey(state.selKey || 'city\u2502CC');
         const a = document.createElement('a');
-        a.href = document.getElementById('canvasA').toDataURL('image/png');
+        a.href = el.canvasA.toDataURL('image/png');
         a.download = `climate_${state.mode}_${slug(city)}_${cc}_${state.season}_${state.baseline}.png`;
-        document.body.appendChild(a); a.click(); a.remove();
+        document.body.appendChild(a); 
+        a.click(); 
+        a.remove();
       });
 
       window.addEventListener('resize', scheduleRender);
 
-      // Arrow-key navigation (wraps)
       document.addEventListener('keydown', (e)=>{
         const active = document.activeElement?.tagName;
         if(active==='INPUT' || active==='SELECT' || active==='TEXTAREA' || e.altKey || e.ctrlKey || e.metaKey) return;
         if(e.key==='ArrowLeft' || e.key==='ArrowRight'){
-          const sel = document.getElementById('city'); if(!sel || !sel.options.length) return;
-          const dir = e.key==='ArrowLeft' ? -1 : 1; let idx = sel.selectedIndex + dir;
-          if(idx < 0) idx = sel.options.length - 1; if(idx >= sel.options.length) idx = 0;
-          sel.selectedIndex = idx; state.selKey = sel.value; scheduleRender();
+          const sel = el.city; 
+          if(!sel || !sel.options.length) return;
+          const dir = e.key==='ArrowLeft' ? -1 : 1; 
+          let idx = sel.selectedIndex + dir;
+          if(idx < 0) idx = sel.options.length - 1; 
+          if(idx >= sel.options.length) idx = 0;
+          sel.selectedIndex = idx; 
+          state.selKey = sel.value; 
+          scheduleRender();
         }
       });
     }
 
-    // ---------- Render ----------
-    let rafId = 0; function scheduleRender(){ cancelAnimationFrame(rafId); rafId = requestAnimationFrame(render); }
-    function getValues(obj, baseline){ return (baseline==='1850-1900') ? obj.a1 : obj.a2; }
-
-    function updateLegend(domain, clipped){
-      document.getElementById('legendMin').textContent = `${domain[0].toFixed(1)}°C`;
-      document.getElementById('legendMax').textContent = `${domain[1].toFixed(1)}°C`;
-      const clipEl = document.getElementById('legendClip');
-      if(clipEl){ if(clipped>0){ clipEl.style.display='inline-block'; clipEl.textContent = `clipped ${clipped}`; } else { clipEl.style.display='none'; } }
-    }
-
-    function drawBars(canvas, years, values, domain, cityName){
-      const ctx = canvas.getContext('2d', { alpha:false });
-      const containerW = canvas.parentElement?.clientWidth || window.innerWidth;
-      const widthPx  = Math.max(600, containerW - 24);
-      const heightPx = BARS_INNER_H + MARGIN.top + MARGIN.bottom;
-      canvas.width = Math.floor(widthPx * DPR); canvas.height = Math.floor(heightPx * DPR); canvas.style.width = widthPx + 'px'; canvas.style.height = heightPx + 'px';
-      ctx.setTransform(DPR,0,0,DPR,0,0); ctx.fillStyle = '#0b0c0c'; ctx.fillRect(0,0,widthPx,heightPx);
-
-      const x0=MARGIN.left, y0=MARGIN.top, w=widthPx-MARGIN.left-MARGIN.right, h=BARS_INNER_H; const n=Math.max(1, years.length);
-      const y = d3.scaleLinear().domain([domain[1], domain[0]]).range([y0, y0+h]).clamp(true); const yZero = y(0);
-
-      const ticks = niceTicks(domain[1]);
-      ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.lineWidth=1;
-      for (const t of ticks){ const yy=y(t); ctx.beginPath(); ctx.moveTo(x0,yy); ctx.lineTo(x0+w,yy); ctx.stroke(); }
-
-      forEachBand(n, x0, w, (i, bx, bw) => {
-        const v = values[i]; if (!Number.isFinite(v)) return;
-        const yv = y(v), top = Math.min(yv, yZero), bh = Math.max(1, Math.abs(yv - yZero));
-        ctx.fillStyle = toBlueRed(v, domain);
-        ctx.fillRect(bx, top, bw, bh);
-      });
-
-      ctx.fillStyle = '#e8eaed';
-      ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
-      ctx.textAlign='right'; ctx.textBaseline='middle';
-      for (const t of ticks) ctx.fillText(fmtTick(t), x0-8, y(t));
-
-      const first=years[0], last=years[years.length-1], mid=Math.round((first+last)/2);
-      ctx.textBaseline='bottom';
-      ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(x0, y0+h+2, w, AXIS_BAND_H);
-      ctx.fillStyle='#e8eaed';
-      ctx.textAlign='left';   ctx.fillText(String(first), x0 + 6, y0+h+AXIS_BAND_H);
-      ctx.textAlign='center'; ctx.fillText(String(mid),   x0 + Math.floor(w/2), y0+h+AXIS_BAND_H);
-      ctx.textAlign='right';  ctx.fillText(String(last),  x0 + w - 6,           y0+h+AXIS_BAND_H);
-
-      canvas.setAttribute('aria-label', `Bars view for ${cityName}.`);
-    }
-
-    function drawStripes(canvas, years, values, domain, cityName){
-      const ctx = canvas.getContext('2d', { alpha:false });
-      const containerW = canvas.parentElement?.clientWidth || window.innerWidth;
-      const widthPx  = Math.max(600, containerW - 24);
-      const heightPx = STRIPES_HEIGHT + AXIS_BAND_H + 10;
-      canvas.width = Math.floor(widthPx * DPR); canvas.height = Math.floor(heightPx * DPR); canvas.style.width = widthPx + 'px'; canvas.style.height = heightPx + 'px';
-      ctx.setTransform(DPR,0,0,DPR,0,0); ctx.fillStyle = '#0b0c0c'; ctx.fillRect(0,0,widthPx,heightPx);
-
-      const n = Math.max(1, years.length);
-      forEachBand(n, 0, widthPx, (i, sx, sw) => {
-        const v = values[i]; ctx.fillStyle = toBlueRed(v, domain); ctx.fillRect(sx, 0, sw, STRIPES_HEIGHT);
-      });
-
-      const first=years[0], last=years[years.length-1], mid=Math.round((first+last)/2);
-      ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0, STRIPES_HEIGHT + 2, widthPx, AXIS_BAND_H);
-      ctx.fillStyle='#e8eaed'; ctx.font='13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
-      ctx.textBaseline='bottom';
-      ctx.textAlign='left';   ctx.fillText(String(first), 6, STRIPES_HEIGHT + AXIS_BAND_H);
-      ctx.textAlign='center'; ctx.fillText(String(mid), Math.floor(widthPx/2), STRIPES_HEIGHT + AXIS_BAND_H);
-      ctx.textAlign='right';  ctx.fillText(String(last), widthPx - 6, STRIPES_HEIGHT + AXIS_BAND_H);
-
-      canvas.setAttribute('aria-label', `Stripes view for ${cityName}.`);
-    }
-
-    function render(){
-      const payload = state.dataCache.get(state.season); if (!payload) return;
-      const { byKey, minYear, maxYear } = payload;
-      const available = new Set(byKey.keys());
-      if (!state.selKey || !available.has(state.selKey)){
-        const firstOpt = document.getElementById('city').options[0]?.value || null;
-        if (!firstOpt) return;
-        state.selKey = firstOpt; document.getElementById('city').value = firstOpt;
-      }
-
-      const obj = byKey.get(state.selKey);
-      const meta = state.metaIndex.get(state.selKey) || {};
-      const [city, cc] = splitKey(state.selKey);
-
-      const years = obj?.years || [];
-      const values = (state.baseline==='1850-1900') ? (obj?.a1 || []) : (obj?.a2 || []);
-
-      const domain = computeDomain(values, state.baseline, state.scaleMode);
-      let clipped = 0; for(const v of values){ if(Number.isFinite(v) && (v<domain[0] || v>domain[1])) clipped++; }
-      updateLegend(domain, clipped);
-
-      const first = years.length ? years[0] : minYear;
-      const last  = years.length ? years[years.length-1] : maxYear;
-
-      document.getElementById('titleA').textContent = `${city} (${cc || '—'})`;
-      const pop = meta.population ? new Intl.NumberFormat().format(meta.population) : '—';
-      const seasonLabel = (state.season === 'ANNUAL') ? 'Annual' : state.season;
-      document.getElementById('metaA').innerHTML = `${meta.country || ''} <span class="badge">pop. ${pop}</span> • ${seasonLabel} • Baseline: ${state.baseline.replace('-', '–')} • Scale: ${state.scaleMode}`;
-      document.getElementById('yearsA').textContent = (years.length ? `${first}–${last} (${years.length} years)` : '—');
-
-      if (state.mode === 'bars') drawBars(document.getElementById('canvasA'), years, values, domain, city);
-      else drawStripes(document.getElementById('canvasA'), years, values, domain, city);
-    }
-
-    // ---------- Safety: never leave overlay up ----------
-    window.addEventListener('error', (e) => {
-      console.error('Global error:', e.error || e.message);
-      el.loadingOverlay?.classList.add('hidden');
-      alert(`Unexpected JS error:\n${e.message || e.error}`);
-    });
-    window.addEventListener('unhandledrejection', (e) => {
-      console.error('Unhandled rejection:', e.reason);
-      el.loadingOverlay?.classList.add('hidden');
-      alert(`Unexpected error:\n${e.reason?.message || e.reason}`);
-    });
-
-    // ---------- Boot ----------
-    (async function start(){
-      try {
-        await preloadAll();
-        const { byKey } = state.dataCache.get('ANNUAL') || { byKey: new Map() };
-        const available = new Set(byKey.keys());
-        populateCountries(available); populateCities(available);
-        state.selKey = document.getElementById('city').options[0]?.value || null;
-        wireControls(); scheduleRender();
-
-        // Self-checks
-        try {
-          console.assert(JSON.stringify(getFixedDomain('1850-1900')) === JSON.stringify([-2,2]), 'Fixed domain 1850-1900');
-          console.assert(JSON.stringify(getFixedDomain('1961-2010')) === JSON.stringify([-1.5,1.5]), 'Fixed domain 1961-2010');
-          console.assert(JSON.stringify(computeDomain([-3,0,1], '1850-1900', 'autoSym')) === JSON.stringify([-3,3]), 'AutoSym expands to ±max');
-          const ar = computeDomain([-0.2,0.4], '1961-2010', 'autoRange');
-          console.assert(ar[0] <= -1.5 && ar[1] >= 1.5, 'AutoRange not narrower than fixed');
-        } catch (e) { console.warn('Self-tests failed:', e); }
-      } catch (err) {
-        console.error(err);
-        alert('Unexpected error during start(). See console.');
-      } finally {
-        el.loadingOverlay?.classList.add('hidden');
-        el.loadingOverlay?.setAttribute('aria-busy','false');
-      }
-    })();
-  </script>
-</body>
-</html>
+    let rafId = 0; 
+    function scheduleRender(){

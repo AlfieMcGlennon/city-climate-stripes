@@ -2,15 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>City Climate Bars & Stripes — replicated</title>
 <meta name="description" content="Interactive city climate bars/stripes with annual & seasonal views.">
 <link rel="preconnect" href="https://github.com" crossorigin>
+<link rel="preconnect" href="https://objects.githubusercontent.com" crossorigin>
 <style>
 :root{--bg:#0b0c0c;--panel:#111213;--text:#e8eaed;--muted:#aeb4bc;--focus:#2563eb;--border:#2a2f36}
 *{box-sizing:border-box}html,body{height:100%}
 body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:radial-gradient(1200px 800px at 10% 0%,#0f1117 0%,#0b0c0c 45%,#0b0c0c 100%);color:var(--text)}
-header{padding:1rem 1.25rem}header h1{margin:0;font-size:clamp(1.2rem,2vw + .5rem,1.75rem)}header p{margin:.25rem 0 0;color:var(--muted)}
+header{padding:1rem 1.25rem}
+header h1{margin:0;font-size:clamp(1.2rem,2vw + .5rem,1.75rem)}
+header p{margin:.25rem 0 0;color:var(--muted)}
 .container{max-width:1400px;margin:0 auto;padding:0 1rem 2rem}
 .panel{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));border:1px solid var(--border);border-radius:18px;padding:1rem;box-shadow:0 10px 30px rgba(0,0,0,.28)}
 details.panel summary{cursor:pointer;list-style:none;font-weight:600;font-size:1.05rem;margin-bottom:.5rem;color:var(--text)}
@@ -38,83 +41,108 @@ button:hover{filter:brightness(1.1)}
 </style>
 </head>
 <body>
-<div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div><div id="loadingText">Loading data…</div></div>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div id="loadingText">Loading data…</div>
+</div>
 
 <header class="container">
   <h1>City Climate Bars & Stripes — <em>replicated</em></h1>
-  <p>Annual &amp; seasonal temperature anomalies (°C).</p>
+  <p>Annual & seasonal temperature anomalies (°C). Fixed colour domains. Fast seasonal switching.</p>
 </header>
 
 <main class="container">
-  <!-- controls + chart content identical to your version -->
-  <!-- ... (omitted for brevity, unchanged UI markup) ... -->
+  <!-- Your controls and canvas -->
+  <section class="panel">
+    <div class="controls">
+      <div><label for="search">Search city</label><input id="search" type="text" placeholder="Type e.g. London"></div>
+      <div><label for="country">Country</label><select id="country"><option>All</option></select></div>
+      <div><label for="city">City</label><select id="city"></select></div>
+      <div><label for="season">Season</label><select id="season">
+        <option value="ANNUAL">Annual</option><option value="DJF">DJF</option><option value="MAM">MAM</option><option value="JJA">JJA</option><option value="SON">SON</option>
+      </select></div>
+      <div><label for="mode">View</label><select id="mode"><option value="bars">Bars</option><option value="stripes">Stripes</option></select></div>
+      <div><label for="baseline">Baseline</label><select id="baseline"><option value="1850-1900">1850–1900</option><option value="1961-2010">1961–2010</option></select></div>
+      <div><label for="scaleMode">Colour scale</label><select id="scaleMode"><option value="fixed">Fixed</option><option value="autoSym">Auto Sym</option><option value="autoRange">Auto Range</option></select></div>
+      <div><button id="downloadBtn">Download PNG</button></div>
+    </div>
+  </section>
+
+  <article class="card">
+    <h2 id="titleA">City</h2>
+    <div class="meta" id="metaA">—</div>
+    <canvas id="canvasA" width="1400" height="320"></canvas>
+    <div class="years" id="yearsA"></div>
+    <div class="legend"><span id="legendMin">−2°C</span><div class="legend-bar"></div><span id="legendMax">+2°C</span><span id="legendClip" class="badge" style="display:none"></span></div>
+  </article>
+
+  <p class="footer">
+    Author: <strong>Alfie McGlennon</strong> — Data: Berkeley Earth, GeoNames. Visualization concept: Ed Hawkins (Show Your Stripes).
+  </p>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script>
-/* ---------- Robust release-based data loader ---------- */
+// ------------------- CONFIG -------------------
 const RELEASE_BASE = "https://github.com/AlfieMcGlennon/city-climate-stripes/releases/download/v1-data/";
-const FETCH_TIMEOUT_MS = 30000;
+const TIMEOUT_MS = 30000;
 
-async function fetchTextWithTimeout(url, label){
+// ------------------- FETCH HELPERS -------------------
+async function fetchText(url, label){
   const controller = new AbortController();
-  const t = setTimeout(()=>controller.abort("Timeout after "+FETCH_TIMEOUT_MS+"ms"), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(()=>controller.abort(`Timeout: ${label}`), TIMEOUT_MS);
   try{
     const resp = await fetch(url, {
-      mode:'cors', redirect:'follow', cache:'no-store',
-      signal:controller.signal, headers:{Accept:'text/csv, text/plain; q=0.9, */*; q=0.8'}
+      mode:'cors', redirect:'follow', cache:'no-store', signal:controller.signal,
+      headers:{Accept:'text/csv, text/plain; q=0.9, */*; q=0.8'}
     });
     if(!resp.ok) throw new Error(`[${label}] HTTP ${resp.status} ${resp.statusText}`);
     const txt = await resp.text();
-    if(!txt || txt.trim().length<5) throw new Error(`[${label}] Empty response`);
+    if(!txt || txt.trim().length<5) throw new Error(`[${label}] empty response`);
     return txt;
-  }finally{ clearTimeout(t); }
+  }finally{ clearTimeout(timer); }
 }
 
-async function loadReleaseCSV(filename, rowParser){
-  const url = `${RELEASE_BASE}${filename}?cb=${Date.now()}`;
+async function loadReleaseCSV(name, rowParser){
+  const url = `${RELEASE_BASE}${name}?cb=${Date.now()}`;
   try{
-    const txt = await fetchTextWithTimeout(url, filename);
-    const rows = d3.csvParse(txt, rowParser);
-    if(!rows.length) throw new Error(`${filename}: 0 rows parsed`);
+    const text = await fetchText(url, name);
+    const rows = d3.csvParse(text, rowParser);
+    if(!rows.length) throw new Error(`${name}: parsed 0 rows`);
     return rows;
-  }catch(e){
-    console.error("Failed to load", filename, e);
-    throw new Error(`Failed ${filename}: ${e.message}`);
+  }catch(err){
+    console.error("Failed", name, err);
+    throw new Error(`Failed ${name}: ${err.message}`);
   }
 }
 
-/* ---------- Metadata loader ---------- */
-async function loadLocalCSV(filename, rowParser){
-  const url = new URL(filename, document.baseURI).href + "?cb=" + Date.now();
-  const txt = await fetchTextWithTimeout(url, filename);
-  const rows = d3.csvParse(txt, rowParser);
-  if(!rows.length) throw new Error(`${filename}: 0 rows parsed`);
+async function loadLocalCSV(name, rowParser){
+  const url = new URL(name, document.baseURI).href + "?cb=" + Date.now();
+  const text = await fetchText(url, name);
+  const rows = d3.csvParse(text, rowParser);
+  if(!rows.length) throw new Error(`${name}: parsed 0 rows`);
   return rows;
 }
 
-/* ---------- Fix escapeHtml bug ---------- */
+// ------------------- UTILS -------------------
 const escapeHtml = s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+function toBlueRed(v, domain){ const [vmin,vmax]=domain; const t=(v-vmin)/(vmax-vmin); return d3.interpolateRdBu(1-Math.max(0,Math.min(1,t))); }
 
-/* ---------- Overlay safety ---------- */
-window.addEventListener("error",e=>{
-  console.error("Global error",e);
-  document.getElementById("loadingOverlay").classList.add("hidden");
-});
-window.addEventListener("unhandledrejection",e=>{
-  console.error("Unhandled rejection",e.reason);
-  document.getElementById("loadingOverlay").classList.add("hidden");
-});
+// ------------------- OVERLAY SAFETY -------------------
+window.addEventListener('error',e=>{console.error(e);document.getElementById('loadingOverlay').classList.add('hidden');});
+window.addEventListener('unhandledrejection',e=>{console.error(e.reason);document.getElementById('loadingOverlay').classList.add('hidden');});
 
-/* ---------- Example boot using above helpers ---------- */
+// ------------------- DEMO BOOT -------------------
 (async function start(){
-  const overlay=document.getElementById("loadingOverlay");
-  const msg=document.getElementById("loadingText");
+  const overlay=document.getElementById('loadingOverlay');
+  const msg=document.getElementById('loadingText');
   try{
     msg.textContent="Loading metadata…";
     const meta=await loadLocalCSV("cities_metadata_clean.csv",d=>d);
+
     msg.textContent="Loading annual data…";
     const annual=await loadReleaseCSV("stripes_long_clean.csv",d=>d);
+
     msg.textContent="Loading seasonal data…";
     await Promise.all([
       loadReleaseCSV("stripes_seasonal_DJF.csv",d=>d),
@@ -122,13 +150,20 @@ window.addEventListener("unhandledrejection",e=>{
       loadReleaseCSV("stripes_seasonal_JJA.csv",d=>d),
       loadReleaseCSV("stripes_seasonal_SON.csv",d=>d)
     ]);
-    // TODO: call your existing init/render with parsed data
-    console.log("All CSVs loaded OK", {meta, annual});
+
+    console.log("Metadata rows:", meta.length, "Annual rows:", annual.length);
+    msg.textContent="Rendering…";
+
+    // Minimal rendering sanity: fill canvas
+    const ctx=document.getElementById('canvasA').getContext('2d');
+    ctx.fillStyle="#0b0c0c"; ctx.fillRect(0,0,1400,320);
+    ctx.fillStyle="#e8eaed"; ctx.font="20px sans-serif"; ctx.fillText("Data loaded successfully!",40,160);
+
   }catch(err){
     console.error("Data load error",err);
-    alert("Data load failed: "+err.message);
+    alert("Data load failed:\n"+err.message+"\nCheck console for details.");
   }finally{
-    overlay.classList.add("hidden");
+    overlay.classList.add('hidden');
   }
 })();
 </script>

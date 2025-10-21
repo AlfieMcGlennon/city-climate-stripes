@@ -199,7 +199,7 @@
     function forEachBand(n, x0, w, draw){ for (let i=0;i<n;i++){ const xStart = x0 + Math.floor(i * w / n); const xEnd = x0 + Math.floor((i + 1) * w / n); draw(i, xStart, Math.max(1, Math.abs(xEnd - xStart))); } }
 
     // ---------- Local split-data loader ----------
-    // Place all split CSVs under /split_data/ at the repo root.
+    // Files must exist at repo root /split_data/
     const SPLIT_BASE = new URL('./split_data/', document.baseURI).href;
     const LONG_PARTS = [
       'stripes_long_clean_part1.csv',
@@ -214,7 +214,7 @@
       SON: ['stripes_seasonal_SON_part1.csv', 'stripes_seasonal_SON_part2.csv']
     };
 
-    const FETCH_TIMEOUT_MS = 30000; // 30s per file (local Pages is fast; this is just belt-and-braces)
+    const FETCH_TIMEOUT_MS = 30000; // 30s per file
 
     async function fetchTextWithTimeout(url, timeoutMs=FETCH_TIMEOUT_MS){
       const controller = new AbortController();
@@ -236,12 +236,13 @@
       return rows;
     }
 
+    // SAFE MERGE: append rows one-by-one (avoid spread -> "Maximum call stack size exceeded")
     async function loadAllParts(parts, rowParser, label){
       const all = [];
       for (const p of parts){
         try{
           const rows = await loadLocalCsv(p, rowParser);
-          all.push(...rows);
+          for (let i = 0; i < rows.length; i++) all.push(rows[i]);
         }catch(e){
           throw new Error(`[${label}] Failed to load ${p}: ${e.message}`);
         }
@@ -301,7 +302,7 @@
         if(el.loadingOverlay){ el.loadingOverlay.classList.remove('hidden'); el.loadingOverlay.setAttribute('aria-busy','true'); }
         if(el.loadingText) el.loadingText.textContent = 'Loading city metadata…';
 
-        // Load local metadata (same-origin for Pages) from repo root
+        // Load metadata from repo root (same origin)
         const metaUrl = new URL('cities_metadata_clean.csv', document.baseURI).href + '?cb=' + Date.now();
         const metaTxt = await fetchTextWithTimeout(metaUrl);
         const meta = d3.csvParse(metaTxt, parseMeta).filter(validMeta);
@@ -311,6 +312,7 @@
         // Annual (split into 4 parts)
         if(el.loadingText) el.loadingText.textContent = 'Loading annual data…';
         const annualRows = await loadAllParts(LONG_PARTS, parseRowFlexible, 'ANNUAL');
+        // console.log('[ANNUAL] rows:', annualRows.length);
 
         // Seasonal (each split into 2 parts)
         if(el.loadingText) el.loadingText.textContent = 'Loading seasonal data…';

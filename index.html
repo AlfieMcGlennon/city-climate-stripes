@@ -39,14 +39,12 @@
     .spinner{width:56px;height:56px;border-radius:50%;border:4px solid #2a2f36;border-top-color:#6aa9ff;animation:spin 1s linear infinite;margin-bottom:12px}
     @keyframes spin{to{transform:rotate(360deg)}}
     .hint{color:var(--muted);font-size:.85rem;margin-top:.4rem}
-    .error-details{color:#feb2b2;font-size:.85rem;margin-top:10px;max-width:600px;text-align:left}
   </style>
 </head>
 <body>
   <div class="loading-overlay" id="loadingOverlay" aria-live="polite" aria-busy="true">
     <div class="spinner" aria-hidden="true"></div>
     <div id="loadingText">Loading data…</div>
-    <div id="errorDetails" class="error-details" style="display:none;"></div>
   </div>
 
   <header>
@@ -67,7 +65,7 @@
           <li>Toggle <strong>View</strong> between <em>Bars</em> and <em>Stripes</em>.</li>
           <li>Change <strong>Baseline</strong> (1850–1900 or 1961–2010).</li>
           <li>Set <strong>Colour scale</strong>: Fixed, Auto-symmetric, or Auto-range.</li>
-          <li>Use <strong>← / → arrow keys</strong> to quickly cycle through cities.</li>
+          <li>Use <strong>← / → arrow keys</strong> to cycle through cities.</li>
         </ul>
       </div>
     </details>
@@ -121,8 +119,7 @@
           </select>
         </div>
         <div>
-          <label class="visually-hidden" for="downloadBtn">Download chart</label>
-          <button id="downloadBtn" aria-label="Download chart as PNG">Download PNG</button>
+          <button id="downloadBtn">Download PNG</button>
         </div>
       </div>
     </section>
@@ -134,23 +131,21 @@
       <div class="years" id="yearsA"></div>
       <div class="legend" aria-label="Color legend">
         <span id="legendMin">−2.0°C</span>
-        <div class="legend-bar" aria-hidden="true"></div>
+        <div class="legend-bar"></div>
         <span id="legendMax">+2.0°C</span>
         <span id="legendClip" class="badge" style="display:none"></span>
       </div>
-      <div class="hint">Tip: use ← → arrow keys to cycle through cities quickly.</div>
+      <div class="hint">Tip: use ← → arrow keys to cycle through cities.</div>
     </article>
 
     <p class="footer">
       Author: <strong>Alfie McGlennon</strong><br>
-      Data: Berkeley Earth. City metadata: GeoNames. Visualization concept: Ed Hawkins (University of Reading).
+      Data: Berkeley Earth. City metadata: GeoNames. Visualization: Ed Hawkins (University of Reading).
     </p>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" crossorigin="anonymous"></script>
   <script>
-    console.log('Script starting...');
-    
     const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     const BARS_INNER_H = 260;
     const STRIPES_HEIGHT = 240;
@@ -183,63 +178,6 @@
     const fmtTick = (v) => (Math.abs(v) >= 1 ? v.toFixed(0) : v.toFixed(1)).replace(/-0\.0?/, '0');
     function forEachBand(n, x0, w, draw){ for (let i=0;i<n;i++){ const xStart = x0 + Math.floor(i * w / n); const xEnd = x0 + Math.floor((i + 1) * w / n); draw(i, xStart, Math.max(1, xEnd - xStart)); } }
 
-    const SPLIT_BASE = './split_data/';
-    const LONG_PARTS = ['stripes_long_clean_part1.csv', 'stripes_long_clean_part2.csv', 'stripes_long_clean_part3.csv', 'stripes_long_clean_part4.csv'];
-    const SEASON_PARTS = {
-      DJF: ['stripes_seasonal_DJF_part1.csv', 'stripes_seasonal_DJF_part2.csv'],
-      MAM: ['stripes_seasonal_MAM_part1.csv', 'stripes_seasonal_MAM_part2.csv'],
-      JJA: ['stripes_seasonal_JJA_part1.csv', 'stripes_seasonal_JJA_part2.csv'],
-      SON: ['stripes_seasonal_SON_part1.csv', 'stripes_seasonal_SON_part2.csv']
-    };
-
-    async function fetchTextWithTimeout(url, timeoutMs=30000){
-      console.log('Fetching:', url);
-      const controller = new AbortController();
-      const id = setTimeout(()=>controller.abort(), timeoutMs);
-      try{
-        const resp = await fetch(url, { signal: controller.signal });
-        console.log('Response status:', resp.status, 'for', url);
-        if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const text = await resp.text();
-        console.log('Loaded', text.length, 'chars from', url);
-        return text;
-      } catch(e) {
-        console.error('Fetch failed for', url, ':', e);
-        throw e;
-      } finally {
-        clearTimeout(id);
-      }
-    }
-
-    async function loadLocalCsv(filename, rowParser){
-      const url = `${SPLIT_BASE}${filename}`;
-      const txt = await fetchTextWithTimeout(url);
-      const rows = d3.csvParse(txt, rowParser);
-      console.log('Parsed', rows.length, 'rows from', filename);
-      if (!rows || !rows.length) throw new Error(`Parsed 0 rows for ${filename}`);
-      return rows;
-    }
-
-    async function loadAllParts(parts, rowParser, label){
-      console.log(`Loading ${label} with ${parts.length} parts...`);
-      let all = [];
-      for (let i = 0; i < parts.length; i++){
-        const p = parts[i];
-        try{
-          console.log(`  Loading part ${i+1}/${parts.length}: ${p}`);
-          const rows = await loadLocalCsv(p, rowParser);
-          all = all.concat(rows);
-          console.log(`  Now have ${all.length} total rows for ${label}`);
-        }catch(e){
-          console.error(`Failed on part ${p}:`, e);
-          throw new Error(`[${label}] Failed to load ${p}: ${e.message}`);
-        }
-      }
-      console.log(`✓ ${label} loaded: ${all.length} rows`);
-      if (!all.length) throw new Error(`[${label}] No rows after merging`);
-      return all;
-    }
-
     const state = {
       meta: [], metaIndex: new Map(),
       dataCache: new Map(),
@@ -248,67 +186,51 @@
     };
 
     const el = {
-      search:document.getElementById('search'), 
-      country:document.getElementById('country'), 
-      city:document.getElementById('city'), 
-      datalist:document.getElementById('citylist'),
-      season:document.getElementById('season'), 
-      mode:document.getElementById('mode'), 
-      baseline:document.getElementById('baseline'), 
-      downloadBtn:document.getElementById('downloadBtn'),
-      titleA:document.getElementById('titleA'), 
-      metaA:document.getElementById('metaA'), 
-      yearsA:document.getElementById('yearsA'), 
-      canvasA:document.getElementById('canvasA'),
-      legendMin:document.getElementById('legendMin'), 
-      legendMax:document.getElementById('legendMax'), 
-      legendClip:document.getElementById('legendClip'),
-      loadingOverlay:document.getElementById('loadingOverlay'), 
-      loadingText:document.getElementById('loadingText'),
-      errorDetails:document.getElementById('errorDetails'),
-      scaleMode:document.getElementById('scaleMode')
+      search:document.getElementById('search'), country:document.getElementById('country'), city:document.getElementById('city'), datalist:document.getElementById('citylist'),
+      season:document.getElementById('season'), mode:document.getElementById('mode'), baseline:document.getElementById('baseline'), downloadBtn:document.getElementById('downloadBtn'),
+      titleA:document.getElementById('titleA'), metaA:document.getElementById('metaA'), yearsA:document.getElementById('yearsA'), canvasA:document.getElementById('canvasA'),
+      legendMin:document.getElementById('legendMin'), legendMax:document.getElementById('legendMax'), legendClip:document.getElementById('legendClip'),
+      loadingOverlay:document.getElementById('loadingOverlay'), loadingText:document.getElementById('loadingText'), scaleMode:document.getElementById('scaleMode')
     };
-
-    function showError(message, details){
-      console.error('ERROR:', message, details);
-      if(el.loadingText) el.loadingText.textContent = '❌ Error loading data';
-      if(el.errorDetails){
-        el.errorDetails.style.display = 'block';
-        el.errorDetails.innerHTML = `<strong>${message}</strong><br>${details || 'Check browser console (F12) for details'}`;
-      }
-    }
 
     function parseMeta(d){
       const cc = (d.country_code||'').trim().toUpperCase();
-      return { 
-        city:d.city?.trim(), 
-        country:d.country?.trim(), 
-        country_code:cc, 
-        latitude:+d.latitude, 
-        longitude:+d.longitude, 
-        population:+d.population||0, 
-        timezone:d.timezone?.trim() 
-      };
+      return { city:d.city?.trim(), country:d.country?.trim(), country_code:cc, latitude:+d.latitude, longitude:+d.longitude, population:+d.population||0, timezone:d.timezone?.trim() };
     }
-    
-    function validMeta(m){ 
-      return !!(m.city && m.country && /^[A-Z]{2}$/.test(m.country_code)); 
-    }
-    
+    function validMeta(m){ return !!(m.city && m.country && /^[A-Z]{2}$/.test(m.country_code)); }
+
     function parseRowFlexible(d){
       const a1raw = d.anomaly_1850_1900 ?? d.anomaly1850_1900 ?? d['anomaly-1850-1900'];
       const a2raw = d.anomaly_1961_2010 ?? d.anomaly1961_2010 ?? d['anomaly-1961-2010'];
-      return { 
-        city:d.city?.trim(), 
-        cc:(d.country_code ?? d.cc ?? '').trim().toUpperCase(), 
-        year:+d.year, 
-        a1:(a1raw!==undefined&&a1raw!=='')?+a1raw:NaN, 
-        a2:(a2raw!==undefined&&a2raw!=='')?+a2raw:NaN 
-      };
+      return { city:d.city?.trim(), cc:(d.country_code ?? d.cc ?? '').trim().toUpperCase(), year:+d.year, a1:(a1raw!==undefined&&a1raw!=='')?+a1raw:NaN, a2:(a2raw!==undefined&&a2raw!=='')?+a2raw:NaN };
+    }
+
+    async function loadCsv(file, parser){ 
+      try{ 
+        return await d3.csv(file, parser); 
+      } catch(e){ 
+        console.warn(`Failed to load ${file}:`, e);
+        return []; 
+      } 
+    }
+
+    // Load split files and merge them efficiently
+    async function loadSplitCsv(baseName, parts, parser){
+      const allRows = [];
+      for(let i = 0; i < parts.length; i++){
+        const filename = `split_data/${baseName}_part${i+1}.csv`;
+        if(el.loadingText) el.loadingText.textContent = `Loading ${baseName} (${i+1}/${parts.length})…`;
+        const rows = await loadCsv(filename, parser);
+        // Push in batches to avoid stack overflow
+        for(let j = 0; j < rows.length; j += 10000){
+          const batch = rows.slice(j, j + 10000);
+          allRows.push(...batch);
+        }
+      }
+      return allRows;
     }
 
     async function buildPayload(rows){
-      console.log('Building payload from', rows.length, 'rows...');
       const byKey = new Map(); 
       let minYear=Infinity, maxYear=-Infinity;
       
@@ -324,7 +246,6 @@
         if(r.year>maxYear)maxYear=r.year;
       }
       
-      console.log('Sorting', byKey.size, 'cities...');
       for (const obj of byKey.values()){
         const idx = d3.range(obj.years.length).sort((i,j)=>obj.years[i]-obj.years[j]);
         obj.years = idx.map(i=>obj.years[i]); 
@@ -332,50 +253,44 @@
         obj.a2 = idx.map(i=>obj.a2[i]);
       }
       
-      console.log('✓ Payload built:', byKey.size, 'cities');
       return { byKey, minYear, maxYear };
     }
 
     async function preloadAll(){
       try{
-        console.log('=== PRELOAD START ===');
         if(el.loadingOverlay){ 
           el.loadingOverlay.classList.remove('hidden'); 
           el.loadingOverlay.setAttribute('aria-busy','true'); 
         }
         
         if(el.loadingText) el.loadingText.textContent = 'Loading city metadata…';
-        const metaUrl = './cities_metadata_clean.csv';
-        const metaTxt = await fetchTextWithTimeout(metaUrl);
-        const meta = d3.csvParse(metaTxt, parseMeta).filter(validMeta);
-        console.log('✓ Loaded', meta.length, 'cities metadata');
+        const meta = (await loadCsv('cities_metadata_clean.csv', parseMeta)).filter(validMeta);
         state.meta = meta;
         state.metaIndex.clear(); 
         for (const m of meta){ 
           state.metaIndex.set(makeKey(m.city, m.country_code), m); 
         }
 
-        if(el.loadingText) el.loadingText.textContent = 'Loading annual data…';
-        const annualRows = await loadAllParts(LONG_PARTS, parseRowFlexible, 'ANNUAL');
+        // Load annual data (4 parts)
+        const annualRows = await loadSplitCsv('stripes_long_clean', [1,2,3,4], parseRowFlexible);
         
-        if(el.loadingText) el.loadingText.textContent = 'Loading DJF data…';
-        const djfRows = await loadAllParts(SEASON_PARTS.DJF, parseRowFlexible, 'DJF');
-        
-        if(el.loadingText) el.loadingText.textContent = 'Loading MAM data…';
-        const mamRows = await loadAllParts(SEASON_PARTS.MAM, parseRowFlexible, 'MAM');
-        
-        if(el.loadingText) el.loadingText.textContent = 'Loading JJA data…';
-        const jjaRows = await loadAllParts(SEASON_PARTS.JJA, parseRowFlexible, 'JJA');
-        
-        if(el.loadingText) el.loadingText.textContent = 'Loading SON data…';
-        const sonRows = await loadAllParts(SEASON_PARTS.SON, parseRowFlexible, 'SON');
+        // Load seasonal data (2 parts each)
+        if(el.loadingText) el.loadingText.textContent = 'Loading seasonal data…';
+        const [djfRows, mamRows, jjaRows, sonRows] = await Promise.all([
+          loadSplitCsv('stripes_seasonal_DJF', [1,2], parseRowFlexible),
+          loadSplitCsv('stripes_seasonal_MAM', [1,2], parseRowFlexible),
+          loadSplitCsv('stripes_seasonal_JJA', [1,2], parseRowFlexible),
+          loadSplitCsv('stripes_seasonal_SON', [1,2], parseRowFlexible)
+        ]);
 
         if(el.loadingText) el.loadingText.textContent = 'Processing data…';
-        const annual = await buildPayload(annualRows);
-        const djf = await buildPayload(djfRows);
-        const mam = await buildPayload(mamRows);
-        const jja = await buildPayload(jjaRows);
-        const son = await buildPayload(sonRows);
+        const [annual, djf, mam, jja, son] = await Promise.all([
+          buildPayload(annualRows), 
+          buildPayload(djfRows), 
+          buildPayload(mamRows), 
+          buildPayload(jjaRows), 
+          buildPayload(sonRows)
+        ]);
 
         state.dataCache.set('ANNUAL', annual);
         state.dataCache.set('DJF', djf); 
@@ -383,13 +298,10 @@
         state.dataCache.set('JJA', jja); 
         state.dataCache.set('SON', son);
         
-        console.log('=== PRELOAD COMPLETE ===');
-        
       } catch(err){
-        showError('Data loading failed', err.message);
-        throw err;
+        console.error('Preload error:', err);
+        alert('Data loading failed: ' + err.message);
       } finally {
-        console.log('Hiding loading overlay');
         if(el.loadingOverlay){ 
           el.loadingOverlay.classList.add('hidden'); 
           el.loadingOverlay.setAttribute('aria-busy','false'); 
@@ -483,7 +395,6 @@
       el.search.addEventListener('keydown', e => { 
         if (e.key === 'Enter') tryApplySearch(); 
       });
-      
       el.search.addEventListener('change', tryApplySearch);
       el.search.addEventListener('input', tryApplySearch);
 
@@ -525,3 +436,64 @@
     function updateLegend(domain, clipped){
       el.legendMin.textContent = `${domain[0].toFixed(1)}°C`;
       el.legendMax.textContent = `${domain[1].toFixed(1)}°C`;
+      if(el.legendClip){ 
+        if(clipped>0){ 
+          el.legendClip.style.display='inline-block'; 
+          el.legendClip.textContent = `clipped ${clipped}`; 
+        } else { 
+          el.legendClip.style.display='none'; 
+        } 
+      }
+    }
+
+    function drawBars(canvas, years, values, domain, cityName){
+      const ctx = canvas.getContext('2d', { alpha:false });
+      const containerW = canvas.parentElement?.clientWidth || window.innerWidth;
+      const widthPx  = Math.max(600, containerW - 24);
+      const heightPx = BARS_INNER_H + MARGIN.top + MARGIN.bottom;
+      canvas.width = Math.floor(widthPx * DPR); 
+      canvas.height = Math.floor(heightPx * DPR); 
+      canvas.style.width = widthPx + 'px'; 
+      canvas.style.height = heightPx + 'px';
+      ctx.setTransform(DPR,0,0,DPR,0,0); 
+      ctx.fillStyle = '#0b0c0c'; 
+      ctx.fillRect(0,0,widthPx,heightPx);
+      
+      const x0=MARGIN.left, y0=MARGIN.top, w=widthPx-MARGIN.left-MARGIN.right, h=BARS_INNER_H; 
+      const n=Math.max(1, years.length);
+      const y = d3.scaleLinear().domain([domain[1], domain[0]]).range([y0, y0+h]).clamp(true); 
+      const yZero = y(0);
+      
+      const ticks = niceTicks(domain[1]);
+      ctx.strokeStyle='rgba(255,255,255,.1)'; 
+      ctx.lineWidth=1; 
+      for (const t of ticks){ 
+        const yy=y(t); 
+        ctx.beginPath(); 
+        ctx.moveTo(x0,yy); 
+        ctx.lineTo(x0+w,yy); 
+        ctx.stroke(); 
+      }
+      
+      forEachBand(n, x0, w, (i, bx, bw) => { 
+        const v = values[i]; 
+        if (!Number.isFinite(v)) return; 
+        const yv = y(v), top = Math.min(yv, yZero), bh = Math.max(1, Math.abs(yv - yZero)); 
+        ctx.fillStyle = toBlueRed(v, domain); 
+        ctx.fillRect(bx, top, bw, bh); 
+      });
+      
+      ctx.fillStyle = '#e8eaed'; 
+      ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'; 
+      ctx.textAlign='right'; 
+      ctx.textBaseline='middle'; 
+      for (const t of ticks) ctx.fillText(fmtTick(t), x0-8, y(t));
+      
+      const first=years[0], last=years[years.length-1], mid=Math.round((first+last)/2); 
+      ctx.textBaseline='bottom'; 
+      ctx.fillStyle='rgba(0,0,0,.35)'; 
+      ctx.fillRect(x0, y0+h+2, w, AXIS_BAND_H); 
+      ctx.fillStyle='#e8eaed'; 
+      ctx.textAlign='left'; 
+      ctx.fillText(String(first), x0 + 6, y0+h+AXIS_BAND_H); 
+      ctx

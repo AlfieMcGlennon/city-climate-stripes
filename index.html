@@ -175,17 +175,15 @@
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" crossorigin="anonymous"></script>
   <script>
-    // ---------- Environment & canvas DPR ----------
+    // ---------- Mobile detection & canvas DPR ----------
     const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Silk/i.test(navigator.userAgent);
     const DPR = IS_MOBILE ? 1 : Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
-    // ---------- Robust base path for GitHub Pages/custom domains ----------
-    const ORIGIN = location.origin;
-    const BASE_PATH = (()=>{
-      const p = location.pathname.replace(/[^/]*$/, ''); // remove filename, keep trailing slash
-      return p.endsWith('/') ? p : (p + '/');
-    })();
-    const SPLIT_BASE = `${ORIGIN}${BASE_PATH}split_data/`;
+    // ---------- Simple, robust paths (relative to this file) ----------
+    // We use simple relative URLs so this works at both "/" and "/<repo>/".
+    const ROOT_BASE = ''; // root-relative
+    const META_PATH = 'cities_metadata_clean.csv';
+    const SPLIT_DIR = 'split_data/';
 
     // ---------- Config ----------
     const BARS_INNER_H   = 260;
@@ -238,12 +236,12 @@
 
     async function fetchTextWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS){
       const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeoutMs);
+      const id = setTimeout(() => controller.abort(new Error('Timeout')), timeoutMs);
       try{
-        const resp = await fetch(url, { signal: controller.signal, cache: 'no-cache' }); // same-origin default
+        const resp = await fetch(url, { signal: controller.signal, cache: 'no-cache' });
         if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
         let txt = await resp.text();
-        // Strip UTF-8 BOM if present
+        // Strip UTF-8 BOM if present (can break CSV header)
         if (txt && txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1);
         return txt;
       } finally {
@@ -251,37 +249,42 @@
       }
     }
 
+    async function loadCsvText(path){
+      // use relative URLs with cache-busting
+      const url = `${path}${path.includes('?') ? '' : ('?cb=' + Date.now())}`;
+      return await fetchTextWithTimeout(url);
+    }
+
     async function loadLocalCsv(filename, rowParser){
-      const url = `${SPLIT_BASE}${filename}?cb=${Date.now()}`; // cache-buster
-      const txt = await fetchTextWithTimeout(url);
+      const url = `${SPLIT_DIR}${filename}`;
+      const txt = await loadCsvText(url);
       let rows;
       try{
         rows = d3.csvParse(txt, rowParser);
       }catch(e){
-        throw new Error(`CSV parse failed for ${url}: ${e.message || e}`);
+        throw new Error(`CSV parse failed: ${url} — ${e.message || e}`);
       }
-      if (!rows || !rows.length) throw new Error(`Parsed 0 rows for ${url}`);
+      if (!rows || !rows.length) throw new Error(`Parsed 0 rows: ${url}`);
       return rows;
     }
 
     async function loadAllParts(parts, rowParser, label){
       const all = [];
       if (IS_MOBILE) {
-        // sequential on mobile to avoid memory spikes
+        // sequential on mobile to reduce memory spikes
         for (const p of parts){
           try{
             const rows = await loadLocalCsv(p, rowParser);
-            for (let i = 0; i < rows.length; i++) all.push(rows[i]);
+            for (let i=0;i<rows.length;i++) all.push(rows[i]);
           }catch(e){
-            throw new Error(`[${label}] Failed to load ${p}: ${e.message}`);
+            throw new Error(`[${label}] ${e.message}`);
           }
         }
       } else {
-        // parallel on desktop
         const results = await Promise.all(parts.map(p =>
-          loadLocalCsv(p, rowParser).catch(e => { throw new Error(`[${label}] Failed to load ${p}: ${e.message}`); })
+          loadLocalCsv(p, rowParser).catch(e => { throw new Error(`[${label}] ${e.message}`); })
         ));
-        for (const rows of results){ for (let i=0; i<rows.length; i++) all.push(rows[i]); }
+        for (const rows of results){ for (let i=0;i<rows.length;i++) all.push(rows[i]); }
       }
       if (!all.length) throw new Error(`[${label}] No rows after merging parts`);
       return all;
@@ -318,7 +321,7 @@
     }
 
     // ---------- Build payload ----------
-    async function buildPayload(rows){
+    function buildPayload(rows){
       const byKey = new Map(); let minYear=Infinity, maxYear=-Infinity;
       for (const r of rows){ if (!Number.isFinite(r.year)) continue;
         const key=makeKey(r.city, r.cc);
@@ -336,10 +339,9 @@
 
     // ---------- Loaders (metadata + lazy seasons) ----------
     async function loadMetadata(){
-      const url = `${ORIGIN}${BASE_PATH}cities_metadata_clean.csv?cb=${Date.now()}`;
-      const txt = await fetchTextWithTimeout(url);
+      const txt = await loadCsvText(META_PATH);
       const meta = d3.csvParse(txt, parseMeta).filter(validMeta);
-      if (!meta.length) throw new Error('cities_metadata_clean.csv parsed 0 rows.');
+      if (!meta.length) throw new Error(`${META_PATH} parsed 0 rows`);
       state.meta = meta;
       state.metaIndex.clear(); for (const m of meta){ state.metaIndex.set(makeKey(m.city, m.country_code), m); }
     }
@@ -347,16 +349,13 @@
     async function loadAnnualIfNeeded(){
       if (state.loadedSeasons.has('ANNUAL')) return;
       el.loadingText && (el.loadingText.textContent = 'Loading annual data…');
-      // Load all 4 parts with asserts
       const a1 = await loadLocalCsv('stripes_long_clean_part1.csv', parseRowFlexible);
       const a2 = await loadLocalCsv('stripes_long_clean_part2.csv', parseRowFlexible);
       const a3 = await loadLocalCsv('stripes_long_clean_part3.csv', parseRowFlexible);
       const a4 = await loadLocalCsv('stripes_long_clean_part4.csv', parseRowFlexible);
-      if (!a1.length || !a2.length || !a3.length || !a4.length) {
-        throw new Error('Annual parts missing rows — check all 4 files exist and are non-empty.');
-      }
+      if (!a1.length || !a2.length || !a3.length || !a4.length) throw new Error('Annual parts missing rows — check all 4 files exist and are non-empty.');
       const rows = a1.concat(a2, a3, a4);
-      const annual = await buildPayload(rows);
+      const annual = buildPayload(rows);
       state.dataCache.set('ANNUAL', annual);
       state.loadedSeasons.add('ANNUAL');
     }
@@ -366,9 +365,8 @@
       el.loadingText && (el.loadingText.textContent = `Loading ${season} data…`);
       const parts = SEASON_PARTS[season]; if (!parts) return;
       const rows = await loadAllParts(parts, parseRowFlexible, season);
-      // Extra assert per-season
       if (!rows.length) throw new Error(`${season} parts merged to 0 rows — check filenames.`);
-      const payload = await buildPayload(rows);
+      const payload = buildPayload(rows);
       state.dataCache.set(season, payload);
       state.loadedSeasons.add(season);
     }
@@ -569,18 +567,6 @@
       canvas.setAttribute('aria-label', `Stripes view for ${cityName}.`);
     }
 
-    // ---------- Safety: never leave overlay up ----------
-    window.addEventListener('error', (e) => {
-      console.error('Global error:', e.error || e.message);
-      el.loadingOverlay?.classList.add('hidden');
-      alert(`Unexpected JS error:\n${e.message || e.error}`);
-    });
-    window.addEventListener('unhandledrejection', (e) => {
-      console.error('Unhandled rejection:', e.reason);
-      el.loadingOverlay?.classList.add('hidden');
-      alert(`Unexpected error:\n${e.reason?.message || e.reason}`);
-    });
-
     function render(){
       const payload = state.dataCache.get(state.season); if (!payload) return;
       const { byKey, minYear, maxYear } = payload;
@@ -615,6 +601,20 @@
       else drawStripes(el.canvasA, years, values, domain, city);
     }
 
+    // ---------- Safety: never leave overlay up ----------
+    window.addEventListener('error', (e) => {
+      console.error('Global error:', e.error || e.message);
+      el.loadingOverlay?.classList.add('hidden');
+      el.loadingOverlay?.setAttribute('aria-busy','false');
+      alert(`Unexpected JS error:\n${e.message || e.error}`);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('Unhandled rejection:', e.reason);
+      el.loadingOverlay?.classList.add('hidden');
+      el.loadingOverlay?.setAttribute('aria-busy','false');
+      alert(`Unexpected error:\n${e.reason?.message || e.reason}`);
+    });
+
     // ---------- Boot ----------
     let rafId = 0; function scheduleRender(){ cancelAnimationFrame(rafId); rafId = requestAnimationFrame(render); }
 
@@ -627,7 +627,7 @@
         state.selKey = el.city.options[0]?.value || null;
         wireControls(); scheduleRender();
 
-        // Tiny self-checks
+        // sanity checks
         try {
           console.assert(JSON.stringify(getFixedDomain('1850-1900')) === JSON.stringify([-2,2]), 'Fixed domain 1850-1900');
           console.assert(JSON.stringify(getFixedDomain('1961-2010')) === JSON.stringify([-1.5,1.5]), 'Fixed domain 1961-2010');
@@ -636,6 +636,7 @@
         console.error('Preload error:', err);
         alert('Data loading failed:\n\n' + (err?.message || err));
       } finally {
+        // OVERLAY MUST NEVER STAY
         el.loadingOverlay?.classList.add('hidden');
         el.loadingOverlay?.setAttribute('aria-busy','false');
       }

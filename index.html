@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>City Climate Bars & Stripes — replicated</title>
-  <meta name="description" content="Interactive city climate bars/stripes with annual & seasonal views." />
+  <meta name="description" content="Interactive city climate bars/stripes with annual & seasonal views. Built as a side project to demonstrate data manipulation and utilising artificial intelligence to create accessible visualisations and dashboards." />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <style>
     :root { --bg:#0b0c0c; --panel:#111213; --text:#e8eaed; --muted:#aeb4bc; --focus:#2563eb; --border:#2a2f36; }
@@ -58,14 +58,17 @@
     <details class="panel" open>
       <summary>About & How to use</summary>
       <div>
-        <p><strong>What this is:</strong> an interactive replication of Ed Hawkins' climate stripes for cities, with annual & seasonal anomaly views.</p>
+        <p><strong>What this is:</strong> an interactive replication of Ed Hawkins' climate stripes for cities, with annual & seasonal anomaly views. It was built as a personal side project to showcase data manipulation and how AI can help craft accessible visualisations and dashboards.</p>
+        <p><strong>Data caveats:</strong> the Berkeley Earth city alignment is relatively heavily filled and the city latitude/longitude matching isn't guaranteed to be perfectly accurate. Treat this as a fun visual exploration rather than a scientific product. For robust data and methodology, see <a href="https://showyourstripes.info" target="_blank" rel="noopener">Climate Stripes (official)</a>.</p>
         <ul>
           <li><strong>Select a country</strong> then a <strong>city</strong>, or use <strong>Search city</strong>.</li>
           <li>Switch <strong>Season</strong> between Annual, DJF, MAM, JJA, SON.</li>
-          <li>Toggle <strong>View</strong> between <em>Bars</em> and <em>Stripes</em>.</li>
-          <li>Change <strong>Baseline</strong> (1850–1900 or 1961–2010).</li>
+          <li>Toggle <strong>View</strong> between <em>Bars</em> (with zero line & ticks) and <em>Stripes</em>.</li>
+          <li>Change <strong>Baseline</strong> (1850–1900 or 1961–2010) to swap anomaly column.</li>
           <li>Set <strong>Colour scale</strong>: Fixed, Auto-symmetric, or Auto-range.</li>
-          <li>Use <strong>← / → arrow keys</strong> to cycle through cities.</li>
+          <li>Use <strong>← / → arrow keys</strong> to quickly cycle through cities.</li>
+          <li>Click <strong>Download PNG</strong> to save the current view.</li>
+          <li>The legend shows the active domain; a <em>clipped</em> badge appears if any years exceed it.</li>
         </ul>
       </div>
     </details>
@@ -114,12 +117,13 @@
           <label for="scaleMode">Colour scale</label>
           <select id="scaleMode">
             <option value="fixed" selected>Fixed (baseline)</option>
-            <option value="autoSym">Auto — symmetric</option>
-            <option value="autoRange">Auto — range</option>
+            <option value="autoSym">Auto — symmetric (city)</option>
+            <option value="autoRange">Auto — min↔max (city)</option>
           </select>
         </div>
         <div>
-          <button id="downloadBtn">Download PNG</button>
+          <label class="visually-hidden" for="downloadBtn">Download chart</label>
+          <button id="downloadBtn" aria-label="Download chart as PNG">Download PNG</button>
         </div>
       </div>
     </section>
@@ -129,18 +133,22 @@
       <div class="meta" id="metaA">—</div>
       <canvas id="canvasA" width="1400" height="320" role="img" aria-label="Climate visualization"></canvas>
       <div class="years" id="yearsA"></div>
-      <div class="legend" aria-label="Color legend">
+      <div class="legend" aria-hidden="false" aria-label="Color legend">
         <span id="legendMin">−2.0°C</span>
-        <div class="legend-bar"></div>
+        <div class="legend-bar" aria-hidden="true"></div>
         <span id="legendMax">+2.0°C</span>
         <span id="legendClip" class="badge" style="display:none"></span>
       </div>
-      <div class="hint">Tip: use ← → arrow keys to cycle through cities.</div>
+      <div class="hint">Tip: use ← → arrow keys to cycle through cities quickly.</div>
     </article>
 
     <p class="footer">
       Author: <strong>Alfie McGlennon</strong><br>
-      Data: Berkeley Earth. City metadata: GeoNames. Visualization: Ed Hawkins (University of Reading).
+      Data: Berkeley Earth (CC BY-NC 4.0, non-commercial). City metadata: GeoNames (CC BY 4.0). Visualization concept:
+      "climate stripes" by Ed Hawkins (University of Reading). —
+      <a href="https://berkeleyearth.org" target="_blank" rel="noopener">Berkeley Earth</a> ·
+      <a href="https://www.geonames.org" target="_blank" rel="noopener">GeoNames</a> ·
+      <a href="https://showyourstripes.info" target="_blank" rel="noopener">Show Your Stripes</a>
     </p>
   </main>
 
@@ -209,25 +217,9 @@
       try{ 
         return await d3.csv(file, parser); 
       } catch(e){ 
-        console.warn(`Failed to load ${file}:`, e);
+        console.warn(`Failed to load ${file}`, e);
         return []; 
       } 
-    }
-
-    // Load split files and merge them efficiently
-    async function loadSplitCsv(baseName, parts, parser){
-      const allRows = [];
-      for(let i = 0; i < parts.length; i++){
-        const filename = `split_data/${baseName}_part${i+1}.csv`;
-        if(el.loadingText) el.loadingText.textContent = `Loading ${baseName} (${i+1}/${parts.length})…`;
-        const rows = await loadCsv(filename, parser);
-        // Push in batches to avoid stack overflow
-        for(let j = 0; j < rows.length; j += 10000){
-          const batch = rows.slice(j, j + 10000);
-          allRows.push(...batch);
-        }
-      }
-      return allRows;
     }
 
     async function buildPayload(rows){
@@ -258,30 +250,37 @@
 
     async function preloadAll(){
       try{
-        if(el.loadingOverlay){ 
-          el.loadingOverlay.classList.remove('hidden'); 
-          el.loadingOverlay.setAttribute('aria-busy','true'); 
-        }
+        if(el.loadingOverlay){ el.loadingOverlay.classList.remove('hidden'); el.loadingOverlay.setAttribute('aria-busy','true'); }
         
         if(el.loadingText) el.loadingText.textContent = 'Loading city metadata…';
         const meta = (await loadCsv('cities_metadata_clean.csv', parseMeta)).filter(validMeta);
         state.meta = meta;
         state.metaIndex.clear(); 
-        for (const m of meta){ 
-          state.metaIndex.set(makeKey(m.city, m.country_code), m); 
-        }
+        for (const m of meta){ state.metaIndex.set(makeKey(m.city, m.country_code), m); }
 
-        // Load annual data (4 parts)
-        const annualRows = await loadSplitCsv('stripes_long_clean', [1,2,3,4], parseRowFlexible);
-        
-        // Load seasonal data (2 parts each)
+        if(el.loadingText) el.loadingText.textContent = 'Loading annual data…';
+        const annual1 = await loadCsv('split_data/stripes_long_clean_part1.csv', parseRowFlexible);
+        const annual2 = await loadCsv('split_data/stripes_long_clean_part2.csv', parseRowFlexible);
+        const annual3 = await loadCsv('split_data/stripes_long_clean_part3.csv', parseRowFlexible);
+        const annual4 = await loadCsv('split_data/stripes_long_clean_part4.csv', parseRowFlexible);
+        const annualRows = annual1.concat(annual2, annual3, annual4);
+
         if(el.loadingText) el.loadingText.textContent = 'Loading seasonal data…';
-        const [djfRows, mamRows, jjaRows, sonRows] = await Promise.all([
-          loadSplitCsv('stripes_seasonal_DJF', [1,2], parseRowFlexible),
-          loadSplitCsv('stripes_seasonal_MAM', [1,2], parseRowFlexible),
-          loadSplitCsv('stripes_seasonal_JJA', [1,2], parseRowFlexible),
-          loadSplitCsv('stripes_seasonal_SON', [1,2], parseRowFlexible)
+        const [djf1, djf2, mam1, mam2, jja1, jja2, son1, son2] = await Promise.all([
+          loadCsv('split_data/stripes_seasonal_DJF_part1.csv', parseRowFlexible),
+          loadCsv('split_data/stripes_seasonal_DJF_part2.csv', parseRowFlexible),
+          loadCsv('split_data/stripes_seasonal_MAM_part1.csv', parseRowFlexible),
+          loadCsv('split_data/stripes_seasonal_MAM_part2.csv', parseRowFlexible),
+          loadCsv('split_data/stripes_seasonal_JJA_part1.csv', parseRowFlexible),
+          loadCsv('split_data/stripes_seasonal_JJA_part2.csv', parseRowFlexible),
+          loadCsv('split_data/stripes_seasonal_SON_part1.csv', parseRowFlexible),
+          loadCsv('split_data/stripes_seasonal_SON_part2.csv', parseRowFlexible)
         ]);
+
+        const djfRows = djf1.concat(djf2);
+        const mamRows = mam1.concat(mam2);
+        const jjaRows = jja1.concat(jja2);
+        const sonRows = son1.concat(son2);
 
         if(el.loadingText) el.loadingText.textContent = 'Processing data…';
         const [annual, djf, mam, jja, son] = await Promise.all([
@@ -300,7 +299,7 @@
         
       } catch(err){
         console.error('Preload error:', err);
-        alert('Data loading failed: ' + err.message);
+        alert('Data loading failed. Check console for details.');
       } finally {
         if(el.loadingOverlay){ 
           el.loadingOverlay.classList.add('hidden'); 
@@ -311,10 +310,7 @@
 
     function populateCountries(availableKeys){
       const countries = new Set(['ALL']);
-      for (const key of availableKeys){ 
-        const m = state.metaIndex.get(key); 
-        if (m) countries.add(m.country); 
-      }
+      for (const key of availableKeys){ const m = state.metaIndex.get(key); if (m) countries.add(m.country); }
       const opts = Array.from(countries).sort((a,b)=> a==='ALL'?-1: a.localeCompare(b))
         .map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
       const prev = el.country.value;
@@ -326,8 +322,7 @@
     function populateCities(availableKeys){
       let rows = [];
       for (const key of availableKeys){
-        const m=state.metaIndex.get(key); 
-        if(!m) continue;
+        const m=state.metaIndex.get(key); if(!m) continue;
         if(state.selCountry!=='ALL' && m.country!==state.selCountry) continue;
         const [city,cc]=splitKey(key);
         rows.push({key, city, cc, pop:m.population, label:`${city} (${cc})`});
@@ -344,16 +339,11 @@
 
     function wireControls(){
       const tryApplySearch = () => {
-        const val = el.search.value.trim(); 
-        if(!val) return;
+        const val = el.search.value.trim(); if(!val) return;
         const options = Array.from(el.city.options).map(o=>({key:o.value,label:o.textContent}));
         const lc=val.toLowerCase();
-        const exact = options.find(o=> o.label.toLowerCase().includes(lc));
-        if(exact){ 
-          state.selKey=exact.key; 
-          el.city.value=exact.key; 
-          scheduleRender(); 
-        }
+        const exact = options.find(o=> o.label.toLowerCase()===lc || o.label.toLowerCase().startsWith(lc) || o.key.split('\u2502')[0].toLowerCase()===lc);
+        if(exact){ state.selKey=exact.key; el.city.value=exact.key; scheduleRender(); }
       };
 
       el.country.addEventListener('change', () => {
@@ -362,27 +352,10 @@
         populateCities(new Set(byKey.keys()));
         scheduleRender();
       });
-      
-      el.city.addEventListener('change', () => { 
-        state.selKey = el.city.value; 
-        scheduleRender(); 
-      });
-      
-      el.mode.addEventListener('change', () => { 
-        state.mode = el.mode.value; 
-        scheduleRender(); 
-      });
-      
-      el.baseline.addEventListener('change', () => { 
-        state.baseline = el.baseline.value; 
-        scheduleRender(); 
-      });
-      
-      el.scaleMode.addEventListener('change', () => { 
-        state.scaleMode = el.scaleMode.value; 
-        scheduleRender(); 
-      });
-      
+      el.city.addEventListener('change', () => { state.selKey = el.city.value; scheduleRender(); });
+      el.mode.addEventListener('change', () => { state.mode = el.mode.value; scheduleRender(); });
+      el.baseline.addEventListener('change', () => { state.baseline = el.baseline.value; scheduleRender(); });
+      el.scaleMode.addEventListener('change', () => { state.scaleMode = el.scaleMode.value; scheduleRender(); });
       el.season.addEventListener('change', () => {
         state.season = el.season.value;
         const { byKey } = state.dataCache.get(state.season);
@@ -391,10 +364,7 @@
         populateCities(available);
         scheduleRender();
       });
-      
-      el.search.addEventListener('keydown', e => { 
-        if (e.key === 'Enter') tryApplySearch(); 
-      });
+      el.search.addEventListener('keydown', e => { if (e.key === 'Enter') tryApplySearch(); });
       el.search.addEventListener('change', tryApplySearch);
       el.search.addEventListener('input', tryApplySearch);
 
@@ -403,46 +373,32 @@
         const a = document.createElement('a');
         a.href = el.canvasA.toDataURL('image/png');
         a.download = `climate_${state.mode}_${slug(city)}_${cc}_${state.season}_${state.baseline}.png`;
-        document.body.appendChild(a); 
-        a.click(); 
-        a.remove();
+        document.body.appendChild(a); a.click(); a.remove();
       });
 
       window.addEventListener('resize', scheduleRender);
 
       document.addEventListener('keydown', (e)=>{
         const active = document.activeElement?.tagName;
-        if(active==='INPUT' || active==='SELECT' || active==='TEXTAREA') return;
+        if(active==='INPUT' || active==='SELECT' || active==='TEXTAREA' || e.altKey || e.ctrlKey || e.metaKey) return;
         if(e.key==='ArrowLeft' || e.key==='ArrowRight'){
-          const sel = el.city; 
-          if(!sel || !sel.options.length) return;
-          const dir = e.key==='ArrowLeft' ? -1 : 1; 
-          let idx = sel.selectedIndex + dir;
-          if(idx < 0) idx = sel.options.length - 1; 
-          if(idx >= sel.options.length) idx = 0;
-          sel.selectedIndex = idx; 
-          state.selKey = sel.value; 
-          scheduleRender();
+          const sel = el.city; if(!sel || !sel.options.length) return;
+          const dir = e.key==='ArrowLeft' ? -1 : 1; let idx = sel.selectedIndex + dir;
+          if(idx < 0) idx = sel.options.length - 1; if(idx >= sel.options.length) idx = 0;
+          sel.selectedIndex = idx; state.selKey = sel.value; scheduleRender();
         }
       });
     }
 
     let rafId = 0; 
-    function scheduleRender(){ 
-      cancelAnimationFrame(rafId); 
-      rafId = requestAnimationFrame(render); 
-    }
+    function scheduleRender(){ cancelAnimationFrame(rafId); rafId = requestAnimationFrame(render); }
 
     function updateLegend(domain, clipped){
       el.legendMin.textContent = `${domain[0].toFixed(1)}°C`;
       el.legendMax.textContent = `${domain[1].toFixed(1)}°C`;
       if(el.legendClip){ 
-        if(clipped>0){ 
-          el.legendClip.style.display='inline-block'; 
-          el.legendClip.textContent = `clipped ${clipped}`; 
-        } else { 
-          el.legendClip.style.display='none'; 
-        } 
+        if(clipped>0){ el.legendClip.style.display='inline-block'; el.legendClip.textContent = `clipped ${clipped}`; } 
+        else { el.legendClip.style.display='none'; } 
       }
     }
 
@@ -451,49 +407,63 @@
       const containerW = canvas.parentElement?.clientWidth || window.innerWidth;
       const widthPx  = Math.max(600, containerW - 24);
       const heightPx = BARS_INNER_H + MARGIN.top + MARGIN.bottom;
-      canvas.width = Math.floor(widthPx * DPR); 
-      canvas.height = Math.floor(heightPx * DPR); 
-      canvas.style.width = widthPx + 'px'; 
-      canvas.style.height = heightPx + 'px';
-      ctx.setTransform(DPR,0,0,DPR,0,0); 
-      ctx.fillStyle = '#0b0c0c'; 
-      ctx.fillRect(0,0,widthPx,heightPx);
-      
-      const x0=MARGIN.left, y0=MARGIN.top, w=widthPx-MARGIN.left-MARGIN.right, h=BARS_INNER_H; 
-      const n=Math.max(1, years.length);
-      const y = d3.scaleLinear().domain([domain[1], domain[0]]).range([y0, y0+h]).clamp(true); 
-      const yZero = y(0);
-      
+      canvas.width = Math.floor(widthPx * DPR); canvas.height = Math.floor(heightPx * DPR); canvas.style.width = widthPx + 'px'; canvas.style.height = heightPx + 'px';
+      ctx.setTransform(DPR,0,0,DPR,0,0); ctx.fillStyle = '#0b0c0c'; ctx.fillRect(0,0,widthPx,heightPx);
+      const x0=MARGIN.left, y0=MARGIN.top, w=widthPx-MARGIN.left-MARGIN.right, h=BARS_INNER_H; const n=Math.max(1, years.length);
+      const y = d3.scaleLinear().domain([domain[1], domain[0]]).range([y0, y0+h]).clamp(true); const yZero = y(0);
       const ticks = niceTicks(domain[1]);
-      ctx.strokeStyle='rgba(255,255,255,.1)'; 
-      ctx.lineWidth=1; 
-      for (const t of ticks){ 
-        const yy=y(t); 
-        ctx.beginPath(); 
-        ctx.moveTo(x0,yy); 
-        ctx.lineTo(x0+w,yy); 
-        ctx.stroke(); 
+      ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.lineWidth=1; for (const t of ticks){ const yy=y(t); ctx.beginPath(); ctx.moveTo(x0,yy); ctx.lineTo(x0+w,yy); ctx.stroke(); }
+      forEachBand(n, x0, w, (i, bx, bw) => { const v = values[i]; if (!Number.isFinite(v)) return; const yv = y(v), top = Math.min(yv, yZero), bh = Math.max(1, Math.abs(yv - yZero)); ctx.fillStyle = toBlueRed(v, domain); ctx.fillRect(bx, top, bw, bh); });
+      ctx.fillStyle = '#e8eaed'; ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'; ctx.textAlign='right'; ctx.textBaseline='middle'; for (const t of ticks) ctx.fillText(fmtTick(t), x0-8, y(t));
+      const first=years[0], last=years[years.length-1], mid=Math.round((first+last)/2); ctx.textBaseline='bottom'; ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(x0, y0+h+2, w, AXIS_BAND_H); ctx.fillStyle='#e8eaed'; ctx.textAlign='left'; ctx.fillText(String(first), x0 + 6, y0+h+AXIS_BAND_H); ctx.textAlign='center'; ctx.fillText(String(mid), x0 + Math.floor(w/2), y0+h+AXIS_BAND_H); ctx.textAlign='right'; ctx.fillText(String(last),  x0 + w - 6, y0+h+AXIS_BAND_H);
+      canvas.setAttribute('aria-label', `Bars view for ${cityName}.`);
+    }
+
+    function drawStripes(canvas, years, values, domain, cityName){
+      const ctx = canvas.getContext('2d', { alpha:false });
+      const containerW = canvas.parentElement?.clientWidth || window.innerWidth;
+      const widthPx  = Math.max(600, containerW - 24);
+      const heightPx = STRIPES_HEIGHT + AXIS_BAND_H + 10;
+      canvas.width = Math.floor(widthPx * DPR); canvas.height = Math.floor(heightPx * DPR); canvas.style.width = widthPx + 'px'; canvas.style.height = heightPx + 'px';
+      ctx.setTransform(DPR,0,0,DPR,0,0); ctx.fillStyle = '#0b0c0c'; ctx.fillRect(0,0,widthPx,heightPx);
+      const n = Math.max(1, years.length);
+      forEachBand(n, 0, widthPx, (i, sx, sw) => { const v = values[i]; ctx.fillStyle = toBlueRed(v, domain); ctx.fillRect(sx, 0, sw, STRIPES_HEIGHT); });
+      const first=years[0], last=years[years.length-1], mid=Math.round((first+last)/2); ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0, STRIPES_HEIGHT + 2, widthPx, AXIS_BAND_H); ctx.fillStyle='#e8eaed'; ctx.font='13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'; ctx.textBaseline='bottom'; ctx.textAlign='left'; ctx.fillText(String(first), 6, STRIPES_HEIGHT + AXIS_BAND_H); ctx.textAlign='center'; ctx.fillText(String(mid), Math.floor(widthPx/2), STRIPES_HEIGHT + AXIS_BAND_H); ctx.textAlign='right'; ctx.fillText(String(last), widthPx - 6, STRIPES_HEIGHT + AXIS_BAND_H);
+      canvas.setAttribute('aria-label', `Stripes view for ${cityName}.`);
+    }
+
+    function render(){
+      const payload = state.dataCache.get(state.season); if (!payload) return;
+      const { byKey, minYear, maxYear } = payload;
+      const available = new Set(byKey.keys()); if (!state.selKey || !available.has(state.selKey)){ const firstOpt = el.city.options[0]?.value || null; if (!firstOpt) return; state.selKey = firstOpt; el.city.value = firstOpt; }
+      const obj = byKey.get(state.selKey); const meta = state.metaIndex.get(state.selKey) || {}; const [city, cc] = splitKey(state.selKey);
+      const years = obj?.years || []; const values = (state.baseline==='1850-1900') ? (obj?.a1 || []) : (obj?.a2 || []);
+
+      const domain = computeDomain(values, state.baseline, state.scaleMode);
+      let clipped = 0; for(const v of values){ if(Number.isFinite(v) && (v<domain[0] || v>domain[1])) clipped++; }
+      updateLegend(domain, clipped);
+
+      const first = years.length ? years[0] : minYear; const last = years.length ? years[years.length-1] : maxYear;
+      el.titleA.textContent = `${city} (${cc || '—'})`;
+      const pop = meta.population ? new Intl.NumberFormat().format(meta.population) : '—';
+      const seasonLabel = (state.season === 'ANNUAL') ? 'Annual' : state.season;
+      el.metaA.innerHTML = `${meta.country || ''} <span class="badge">pop. ${pop}</span> • ${seasonLabel} • Baseline: ${state.baseline.replace('-', '–')} • Scale: ${state.scaleMode}`;
+      el.yearsA.textContent = (years.length ? `${first}–${last} (${years.length} years)` : '—');
+      if (state.mode === 'bars') drawBars(el.canvasA, years, values, domain, city); else drawStripes(el.canvasA, years, values, domain, city);
+    }
+
+    (async function start(){
+      try {
+        await preloadAll();
+        const { byKey } = state.dataCache.get('ANNUAL'); const available = new Set(byKey.keys());
+        populateCountries(available); populateCities(available); state.selKey = el.city.options[0]?.value || null; wireControls(); scheduleRender();
+      } catch (err) {
+        console.error(err);
+        alert('Failed to load CSVs. Check console for details.');
+      } finally {
+        if(el.loadingOverlay){ el.loadingOverlay.classList.add('hidden'); el.loadingOverlay.setAttribute('aria-busy','false'); }
       }
-      
-      forEachBand(n, x0, w, (i, bx, bw) => { 
-        const v = values[i]; 
-        if (!Number.isFinite(v)) return; 
-        const yv = y(v), top = Math.min(yv, yZero), bh = Math.max(1, Math.abs(yv - yZero)); 
-        ctx.fillStyle = toBlueRed(v, domain); 
-        ctx.fillRect(bx, top, bw, bh); 
-      });
-      
-      ctx.fillStyle = '#e8eaed'; 
-      ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'; 
-      ctx.textAlign='right'; 
-      ctx.textBaseline='middle'; 
-      for (const t of ticks) ctx.fillText(fmtTick(t), x0-8, y(t));
-      
-      const first=years[0], last=years[years.length-1], mid=Math.round((first+last)/2); 
-      ctx.textBaseline='bottom'; 
-      ctx.fillStyle='rgba(0,0,0,.35)'; 
-      ctx.fillRect(x0, y0+h+2, w, AXIS_BAND_H); 
-      ctx.fillStyle='#e8eaed'; 
-      ctx.textAlign='left'; 
-      ctx.fillText(String(first), x0 + 6, y0+h+AXIS_BAND_H); 
-      ctx
+    })();
+  </script>
+</body>
+</html>

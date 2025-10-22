@@ -17,6 +17,10 @@
     .panel{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));border:1px solid var(--border);border-radius:18px;padding:1rem;box-shadow:0 10px 30px rgba(0,0,0,.28)}
     details.panel summary{cursor:pointer;list-style:none;font-weight:600;font-size:1.05rem;margin-bottom:.5rem;color:var(--text)}
     details.panel summary::marker,details.panel summary::-webkit-details-marker{display:none}
+    .summary-hint{font-weight:500;color:var(--muted);font-size:.85rem;margin-left:.5rem;opacity:.85}
+    details.panel[open] .summary-hint::before{content:"— tap/click to close"}
+    details.panel:not([open]) .summary-hint::before{content:"— tap/click to open"}
+    details.panel summary:focus{outline:3px solid var(--focus);outline-offset:2px;border-radius:10px}
     .controls{display:grid;gap:.75rem;grid-template-columns:1fr}
     @media(min-width:1200px){.controls{grid-template-columns:1.4fr 1fr 1fr 1fr 1.1fr 1fr auto auto}}
     label{display:block;font-size:.9rem;color:var(--muted);margin-bottom:.35rem}
@@ -34,16 +38,6 @@
     .footer a{color:#9cc0ff;text-decoration:none;border-bottom:1px dotted #9cc0ff}
     .footer a:hover{border-bottom-style:solid}
     .visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
-    /* inline hint for <summary> elements */
-    .summary-hint {
-      font-weight: 500;
-      color: var(--muted);
-      font-size: .85rem;
-      margin-left: .5rem;
-      opacity: .85;
-    }
-    details.panel[open] .summary-hint::before { content: "— tap/click to close"; }
-    details.panel:not([open]) .summary-hint::before { content: "— tap/click to open"; }
 
     /* Loading overlay */
     .loading-overlay{position:fixed;inset:0;background:rgba(11,12,16,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .25s ease}
@@ -63,7 +57,7 @@
   <header>
     <div class="container">
       <h1>City Climate Bars & Stripes — <em>replicated</em></h1>
-      <p>Annual & seasonal temperature anomalies (°C). Fixed colour domains. Fast seasonal switching.</p>
+      <p class="hint">Panels are collapsible — tap/click their title to open or close.</p>
     </div>
   </header>
 
@@ -71,34 +65,32 @@
     <details class="panel" open>
       <summary>About & How to use <span class="summary-hint"></span></summary>
       <div>
-        <p><strong>What this is:</strong> an interactive replication of Ed Hawkins' climate stripes for cities, with annual & seasonal anomaly views. It was built as a personal side project to showcase data manipulation and how AI can help craft accessible visualisations and dashboards.</p>
-        <p><strong>Data caveats:</strong> the Berkeley Earth city alignment is relatively heavily filled and the city latitude/longitude matching isn't guaranteed to be perfectly accurate. Treat this as a fun visual exploration rather than a scientific product. For robust data and methodology, see <a href="https://showyourstripes.info" target="_blank" rel="noopener">Climate Stripes (official)</a>.</p>
+        <p><strong>What this is:</strong> an interactive replication of Ed Hawkins' climate stripes for cities, with annual & seasonal anomaly views. Built to demonstrate data manipulation + accessible visualisation.</p>
+        <p><strong>Data caveats:</strong> city alignment and infilling aren’t perfect; treat this as a visual tool. For formal use, see the official sources.</p>
         <ul>
-          <li><strong>Select a country</strong> then a <strong>city</strong>, or use <strong>Search city</strong>.</li>
+          <li><strong>Pick a country</strong> then a <strong>city</strong>, or use <strong>Search</strong>.</li>
           <li>Switch <strong>Season</strong> between Annual, DJF, MAM, JJA, SON.</li>
-          <li>Toggle <strong>View</strong> between <em>Bars</em> (with zero line & ticks) and <em>Stripes</em>.</li>
-          <li>Change <strong>Baseline</strong> (1850–1900 or 1961–2010) to swap anomaly column.</li>
+          <li>Toggle <strong>View</strong> between <em>Bars</em> and <em>Stripes</em>.</li>
+          <li>Change <strong>Baseline</strong> (1850–1900 or 1961–2010).</li>
           <li>Set <strong>Colour scale</strong>: Fixed, Auto-symmetric, or Auto-range.</li>
-          <li>Use <strong>← / → arrow keys</strong> to quickly cycle through cities.</li>
-          <li>Click <strong>Download PNG</strong> to save the current view.</li>
-          <li>The legend shows the active domain; a <em>clipped</em> badge appears if any years exceed it.</li>
+          <li>Use <strong>← / →</strong> to cycle cities; <strong>Download PNG</strong> saves the chart.</li>
         </ul>
       </div>
     </details>
-    <details class="panel">
-  <summary>My takeaways <span class="summary-hint"></span></summary>
-  <div>
-    <p><strong>Big picture:</strong> while this isn’t meant as a fully rigorous scientific analysis, the visual signal is hard to miss across a very wide set of cities.</p>
-    <ul>
-      <li><strong>Clear warming trend:</strong> the annual stripes/bars show a broad shift toward warmer anomalies in many cities.</li>
-      <li><strong>Seasons still warm overall:</strong> even with higher intra-season variability than annual series, DJF/MAM/JJA/SON views typically show a similar warming signal.</li>
-      <li><strong>Recent decades stand out:</strong> the last ~20–30 years often cluster at the warm end of the domain for many locations.</li>
-      <li><strong>Visual tool, not a dataset of record:</strong> city matching and gap-filling can introduce noise; for formal work, use the official sources and methods.</li>
-    </ul>
-    <p class="hint">Tip: switch the baseline and scale modes to check that the signal doesn’t rely on a narrow colour range.</p>
-  </div>
-</details>
 
+    <!-- Takeaways panel -->
+    <details class="panel">
+      <summary>My takeaways <span class="summary-hint"></span></summary>
+      <div>
+        <p><strong>Big picture:</strong> even without a fully rigorous scientific workflow here, the visual signal is consistent across a large set of cities.</p>
+        <ul>
+          <li><strong>Clear warming trend:</strong> annual bars/stripes shift toward warmer anomalies in many locations.</li>
+          <li><strong>Seasons warm too:</strong> despite higher intra-season variability than annual series, DJF/MAM/JJA/SON generally show the same warming signal.</li>
+          <li><strong>Recent decades:</strong> the last ~20–30 years are frequently at the warm end of the scale.</li>
+        </ul>
+        <p class="hint">Try different baselines and scale modes — the pattern should remain clear.</p>
+      </div>
+    </details>
 
     <!-- Controls panel -->
     <section class="panel" aria-labelledby="controls-title">
@@ -183,15 +175,23 @@
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" crossorigin="anonymous"></script>
   <script>
-    // ---------- Mobile detection & canvas DPR ----------
+    // ---------- Environment & canvas DPR ----------
     const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Silk/i.test(navigator.userAgent);
     const DPR = IS_MOBILE ? 1 : Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
+    // ---------- Robust base path for GitHub Pages/custom domains ----------
+    const ORIGIN = location.origin;
+    const BASE_PATH = (()=>{
+      const p = location.pathname.replace(/[^/]*$/, ''); // remove filename, keep trailing slash
+      return p.endsWith('/') ? p : (p + '/');
+    })();
+    const SPLIT_BASE = `${ORIGIN}${BASE_PATH}split_data/`;
+
+    // ---------- Config ----------
     const BARS_INNER_H   = 260;
     const STRIPES_HEIGHT = 240;
     const AXIS_BAND_H    = 24;
     const MARGIN = { top: 10, right: 10, bottom: AXIS_BAND_H + 8, left: 50 };
-
     function getFixedDomain(baseline){ return baseline === '1961-2010' ? [-1.5, 1.5] : [-2.0, 2.0]; }
 
     function computeDomain(values, baseline, mode){
@@ -219,8 +219,7 @@
     const fmtTick = (v) => (Math.abs(v) >= 1 ? v.toFixed(0) : v.toFixed(1)).replace(/-0\.0?/, '0');
     function forEachBand(n, x0, w, draw){ for (let i=0;i<n;i++){ const xStart = x0 + Math.floor(i * w / n); const xEnd = x0 + Math.floor((i + 1) * w / n); draw(i, xStart, Math.max(1, Math.abs(xEnd - xStart))); } }
 
-    // ---------- File lists (same as before) ----------
-    const SPLIT_BASE = new URL('./split_data/', document.baseURI).href;
+    // ---------- File lists ----------
     const LONG_PARTS = [
       'stripes_long_clean_part1.csv',
       'stripes_long_clean_part2.csv',
@@ -234,44 +233,55 @@
       SON: ['stripes_seasonal_SON_part1.csv', 'stripes_seasonal_SON_part2.csv']
     };
 
+    // ---------- Robust fetch helpers ----------
     const FETCH_TIMEOUT_MS = 30000;
 
-    async function fetchTextWithTimeout(url, timeoutMs=FETCH_TIMEOUT_MS){
+    async function fetchTextWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS){
       const controller = new AbortController();
-      const id = setTimeout(()=>controller.abort(new Error("Timeout")), timeoutMs);
+      const id = setTimeout(() => controller.abort(), timeoutMs);
       try{
-        const resp = await fetch(url, { signal: controller.signal, mode: 'cors', credentials: 'omit', cache: 'no-cache' });
-        if(!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-        return await resp.text();
+        const resp = await fetch(url, { signal: controller.signal, cache: 'no-cache' }); // same-origin default
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+        let txt = await resp.text();
+        // Strip UTF-8 BOM if present
+        if (txt && txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1);
+        return txt;
       } finally {
         clearTimeout(id);
       }
     }
 
     async function loadLocalCsv(filename, rowParser){
-      const url = `${SPLIT_BASE}${filename}?cb=${Date.now()}`;
+      const url = `${SPLIT_BASE}${filename}?cb=${Date.now()}`; // cache-buster
       const txt = await fetchTextWithTimeout(url);
-      const rows = d3.csvParse(txt, rowParser);
-      if (!rows || !rows.length) throw new Error(`Parsed 0 rows for ${filename}`);
+      let rows;
+      try{
+        rows = d3.csvParse(txt, rowParser);
+      }catch(e){
+        throw new Error(`CSV parse failed for ${url}: ${e.message || e}`);
+      }
+      if (!rows || !rows.length) throw new Error(`Parsed 0 rows for ${url}`);
       return rows;
     }
 
     async function loadAllParts(parts, rowParser, label){
       const all = [];
-      // On mobile, fetch sequentially to lower peak memory.
       if (IS_MOBILE) {
+        // sequential on mobile to avoid memory spikes
         for (const p of parts){
           try{
             const rows = await loadLocalCsv(p, rowParser);
-            for (let i=0;i<rows.length;i++) all.push(rows[i]);
+            for (let i = 0; i < rows.length; i++) all.push(rows[i]);
           }catch(e){
             throw new Error(`[${label}] Failed to load ${p}: ${e.message}`);
           }
         }
       } else {
-        // On desktop, in parallel for speed.
-        const results = await Promise.all(parts.map(p => loadLocalCsv(p, rowParser).catch(e => { throw new Error(`[${label}] Failed to load ${p}: ${e.message}`); })));
-        for (const rows of results){ for (let i=0;i<rows.length;i++) all.push(rows[i]); }
+        // parallel on desktop
+        const results = await Promise.all(parts.map(p =>
+          loadLocalCsv(p, rowParser).catch(e => { throw new Error(`[${label}] Failed to load ${p}: ${e.message}`); })
+        ));
+        for (const rows of results){ for (let i=0; i<rows.length; i++) all.push(rows[i]); }
       }
       if (!all.length) throw new Error(`[${label}] No rows after merging parts`);
       return all;
@@ -281,7 +291,7 @@
     const state = {
       meta: [], metaIndex: new Map(),
       dataCache: new Map(),     // season -> payload
-      loadedSeasons: new Set(), // track which seasons are loaded
+      loadedSeasons: new Set(), // which seasons are loaded
       selCountry: 'ALL', selKey: null,
       season: 'ANNUAL', mode: 'bars', baseline: '1850-1900', scaleMode: 'fixed'
     };
@@ -303,7 +313,7 @@
 
     function parseRowFlexible(d){
       const a1raw = d.anomaly_1850_1900 ?? d.anomaly1850_1900 ?? d['anomaly-1850-1900'];
-      const a2raw = d.anomaly_1961_2010 ?? d.anomaly1961_2010 ?? d['anomaly-1961-2010'];
+      const a2raw = d.anomaly_1961_2010 ?? d.anomaly1961_2010 ?? d['anomaly-1961-2010'] ?? d.anomaly_1970_2000;
       return { city:d.city?.trim(), cc:(d.country_code ?? d.cc ?? '').trim().toUpperCase(), year:+d.year, a1:(a1raw!==undefined&&a1raw!=='')?+a1raw:NaN, a2:(a2raw!==undefined&&a2raw!=='')?+a2raw:NaN };
     }
 
@@ -324,40 +334,50 @@
       return { byKey, minYear, maxYear };
     }
 
-    // ---------- Loaders (lazy seasons) ----------
+    // ---------- Loaders (metadata + lazy seasons) ----------
     async function loadMetadata(){
-      const metaUrl = new URL('cities_metadata_clean.csv', document.baseURI).href + '?cb=' + Date.now();
-      const metaTxt = await fetchTextWithTimeout(metaUrl);
-      const meta = d3.csvParse(metaTxt, parseMeta).filter(validMeta);
+      const url = `${ORIGIN}${BASE_PATH}cities_metadata_clean.csv?cb=${Date.now()}`;
+      const txt = await fetchTextWithTimeout(url);
+      const meta = d3.csvParse(txt, parseMeta).filter(validMeta);
+      if (!meta.length) throw new Error('cities_metadata_clean.csv parsed 0 rows.');
       state.meta = meta;
       state.metaIndex.clear(); for (const m of meta){ state.metaIndex.set(makeKey(m.city, m.country_code), m); }
     }
 
     async function loadAnnualIfNeeded(){
       if (state.loadedSeasons.has('ANNUAL')) return;
-      if (el.loadingText) el.loadingText.textContent = 'Loading annual data…';
-      let annualRows = await loadAllParts(LONG_PARTS, parseRowFlexible, 'ANNUAL');
-      const annual = await buildPayload(annualRows);
-      annualRows = null; // free raw rows
+      el.loadingText && (el.loadingText.textContent = 'Loading annual data…');
+      // Load all 4 parts with asserts
+      const a1 = await loadLocalCsv('stripes_long_clean_part1.csv', parseRowFlexible);
+      const a2 = await loadLocalCsv('stripes_long_clean_part2.csv', parseRowFlexible);
+      const a3 = await loadLocalCsv('stripes_long_clean_part3.csv', parseRowFlexible);
+      const a4 = await loadLocalCsv('stripes_long_clean_part4.csv', parseRowFlexible);
+      if (!a1.length || !a2.length || !a3.length || !a4.length) {
+        throw new Error('Annual parts missing rows — check all 4 files exist and are non-empty.');
+      }
+      const rows = a1.concat(a2, a3, a4);
+      const annual = await buildPayload(rows);
       state.dataCache.set('ANNUAL', annual);
       state.loadedSeasons.add('ANNUAL');
     }
 
     async function loadSeasonIfNeeded(season){
-      if (state.loadedSeasons.has(season)) return;
-      if (el.loadingText) el.loadingText.textContent = `Loading ${season} data…`;
+      if (season === 'ANNUAL' || state.loadedSeasons.has(season)) return;
+      el.loadingText && (el.loadingText.textContent = `Loading ${season} data…`);
       const parts = SEASON_PARTS[season]; if (!parts) return;
-      let rows = await loadAllParts(parts, parseRowFlexible, season);
+      const rows = await loadAllParts(parts, parseRowFlexible, season);
+      // Extra assert per-season
+      if (!rows.length) throw new Error(`${season} parts merged to 0 rows — check filenames.`);
       const payload = await buildPayload(rows);
-      rows = null; // free raw rows
       state.dataCache.set(season, payload);
       state.loadedSeasons.add(season);
     }
 
-    // ---------- Preload (metadata + annual only) ----------
+    // ---------- Preload initial (metadata + annual only) ----------
     async function preloadInitial(){
-      if(el.loadingOverlay){ el.loadingOverlay.classList.remove('hidden'); el.loadingOverlay.setAttribute('aria-busy','true'); }
-      if(el.loadingText) el.loadingText.textContent = 'Loading city metadata…';
+      el.loadingOverlay?.classList.remove('hidden');
+      el.loadingOverlay?.setAttribute('aria-busy','true');
+      el.loadingText && (el.loadingText.textContent = 'Loading city metadata…');
       await loadMetadata();
       await loadAnnualIfNeeded();
     }
@@ -414,13 +434,16 @@
 
       el.season.addEventListener('change', async () => {
         state.season = el.season.value;
-        // Lazy-load the season if needed
         try{
           el.loadingOverlay?.classList.remove('hidden');
           el.loadingText && (el.loadingText.textContent = `Loading ${state.season}…`);
           await loadSeasonIfNeeded(state.season);
+        } catch(err){
+          console.error(err);
+          alert('Data loading failed:\n\n' + (err?.message || err));
         } finally {
           el.loadingOverlay?.classList.add('hidden');
+          el.loadingOverlay?.setAttribute('aria-busy','false');
         }
         const { byKey } = state.dataCache.get(state.season);
         const available = new Set(byKey.keys());
@@ -434,13 +457,11 @@
       el.search.addEventListener('input', tryApplySearch);
 
       el.downloadBtn.addEventListener('click', () => {
-        // Mobile guard: very large toDataURL can crash Safari; ensure width <= 2000 px
         const canvas = el.canvasA;
-        const cssWidth = Math.min(canvas.clientWidth || 1400, IS_MOBILE ? 2000 : 4000);
-        const cssHeight = canvas.clientHeight || 320;
+        // Downscale on mobile to keep toDataURL stable
         if (IS_MOBILE && canvas.width > 2200) {
           const off = document.createElement('canvas');
-          const scale = cssWidth / (canvas.width / DPR);
+          const scale = 2000 / canvas.width;
           off.width = Math.floor(canvas.width * scale);
           off.height = Math.floor(canvas.height * scale);
           const ctx = off.getContext('2d');
@@ -548,6 +569,18 @@
       canvas.setAttribute('aria-label', `Stripes view for ${cityName}.`);
     }
 
+    // ---------- Safety: never leave overlay up ----------
+    window.addEventListener('error', (e) => {
+      console.error('Global error:', e.error || e.message);
+      el.loadingOverlay?.classList.add('hidden');
+      alert(`Unexpected JS error:\n${e.message || e.error}`);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('Unhandled rejection:', e.reason);
+      el.loadingOverlay?.classList.add('hidden');
+      alert(`Unexpected error:\n${e.reason?.message || e.reason}`);
+    });
+
     function render(){
       const payload = state.dataCache.get(state.season); if (!payload) return;
       const { byKey, minYear, maxYear } = payload;
@@ -582,19 +615,9 @@
       else drawStripes(el.canvasA, years, values, domain, city);
     }
 
-    // ---------- Safety: never leave overlay up ----------
-    window.addEventListener('error', (e) => {
-      console.error('Global error:', e.error || e.message);
-      el.loadingOverlay?.classList.add('hidden');
-      alert(`Unexpected JS error:\n${e.message || e.error}`);
-    });
-    window.addEventListener('unhandledrejection', (e) => {
-      console.error('Unhandled rejection:', e.reason);
-      el.loadingOverlay?.classList.add('hidden');
-      alert(`Unexpected error:\n${e.reason?.message || e.reason}`);
-    });
-
     // ---------- Boot ----------
+    let rafId = 0; function scheduleRender(){ cancelAnimationFrame(rafId); rafId = requestAnimationFrame(render); }
+
     (async function start(){
       try {
         await preloadInitial();
@@ -603,9 +626,15 @@
         populateCountries(available); populateCities(available);
         state.selKey = el.city.options[0]?.value || null;
         wireControls(); scheduleRender();
+
+        // Tiny self-checks
+        try {
+          console.assert(JSON.stringify(getFixedDomain('1850-1900')) === JSON.stringify([-2,2]), 'Fixed domain 1850-1900');
+          console.assert(JSON.stringify(getFixedDomain('1961-2010')) === JSON.stringify([-1.5,1.5]), 'Fixed domain 1961-2010');
+        } catch (e) { console.warn('Self-tests failed:', e); }
       } catch (err) {
-        console.error(err);
-        alert('Failed to load data. See console for details.');
+        console.error('Preload error:', err);
+        alert('Data loading failed:\n\n' + (err?.message || err));
       } finally {
         el.loadingOverlay?.classList.add('hidden');
         el.loadingOverlay?.setAttribute('aria-busy','false');

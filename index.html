@@ -34,6 +34,16 @@
     .footer a{color:#9cc0ff;text-decoration:none;border-bottom:1px dotted #9cc0ff}
     .footer a:hover{border-bottom-style:solid}
     .visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
+    /* inline hint for <summary> elements */
+    .summary-hint {
+      font-weight: 500;
+      color: var(--muted);
+      font-size: .85rem;
+      margin-left: .5rem;
+      opacity: .85;
+    }
+    details.panel[open] .summary-hint::before { content: "— tap/click to close"; }
+    details.panel:not([open]) .summary-hint::before { content: "— tap/click to open"; }
 
     /* Loading overlay */
     .loading-overlay{position:fixed;inset:0;background:rgba(11,12,16,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .25s ease}
@@ -59,7 +69,7 @@
 
   <main class="container">
     <details class="panel" open>
-      <summary>About & How to use</summary>
+      <summary>About & How to use <span class="summary-hint"></span></summary>
       <div>
         <p><strong>What this is:</strong> an interactive replication of Ed Hawkins' climate stripes for cities, with annual & seasonal anomaly views. It was built as a personal side project to showcase data manipulation and how AI can help craft accessible visualisations and dashboards.</p>
         <p><strong>Data caveats:</strong> the Berkeley Earth city alignment is relatively heavily filled and the city latitude/longitude matching isn't guaranteed to be perfectly accurate. Treat this as a fun visual exploration rather than a scientific product. For robust data and methodology, see <a href="https://showyourstripes.info" target="_blank" rel="noopener">Climate Stripes (official)</a>.</p>
@@ -75,6 +85,20 @@
         </ul>
       </div>
     </details>
+    <details class="panel">
+  <summary>My takeaways <span class="summary-hint"></span></summary>
+  <div>
+    <p><strong>Big picture:</strong> while this isn’t meant as a fully rigorous scientific analysis, the visual signal is hard to miss across a very wide set of cities.</p>
+    <ul>
+      <li><strong>Clear warming trend:</strong> the annual stripes/bars show a broad shift toward warmer anomalies in many cities.</li>
+      <li><strong>Seasons still warm overall:</strong> even with higher intra-season variability than annual series, DJF/MAM/JJA/SON views typically show a similar warming signal.</li>
+      <li><strong>Recent decades stand out:</strong> the last ~20–30 years often cluster at the warm end of the domain for many locations.</li>
+      <li><strong>Visual tool, not a dataset of record:</strong> city matching and gap-filling can introduce noise; for formal work, use the official sources and methods.</li>
+    </ul>
+    <p class="hint">Tip: switch the baseline and scale modes to check that the signal doesn’t rely on a narrow colour range.</p>
+  </div>
+</details>
+
 
     <!-- Controls panel -->
     <section class="panel" aria-labelledby="controls-title">

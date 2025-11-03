@@ -185,9 +185,7 @@
     const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Silk/i.test(navigator.userAgent);
     const DPR = IS_MOBILE ? 1 : Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
-    // ---------- Simple, robust paths (relative to this file) ----------
-    // We use simple relative URLs so this works at both "/" and "/<repo>/".
-    const ROOT_BASE = ''; // root-relative
+    // ---------- Paths ----------
     const META_PATH = 'cities_metadata_clean.csv';
     const SPLIT_DIR = 'split_data/';
 
@@ -196,22 +194,22 @@
     const STRIPES_HEIGHT = 240;
     const AXIS_BAND_H    = 24;
     const MARGIN = { top: 10, right: 10, bottom: AXIS_BAND_H + 8, left: 50 };
-    const BAR_DOMAIN_LIMIT = 4; // soften bar axis range so outliers don't squash everything else
+    const BAR_DOMAIN_LIMIT = 4; // keep the bar axis sensible when a city has extreme outliers
     function getFixedDomain(baseline){ return baseline === '1961-2010' ? [-1.5, 1.5] : [-2.0, 2.0]; }
 
     function computeDomain(values, baseline, mode){
-      if(mode === 'fixed') return getFixedDomain(baseline);
+      if (mode === 'fixed') return getFixedDomain(baseline);
       const finite = values.filter(Number.isFinite);
-      if(!finite.length) return getFixedDomain(baseline);
-      const vmin = Math.min(...finite), vmax = Math.max(...finite);
-      if(mode === 'autoSym'){
-        const M = Math.max(Math.abs(vmin), Math.abs(vmax));
-        const [f0,f1] = getFixedDomain(baseline);
-        return [-Math.max(M, Math.abs(f0)), Math.max(M, Math.abs(f1))];
+      if (!finite.length) return getFixedDomain(baseline);
+      const vmin = Math.min(...finite);
+      const vmax = Math.max(...finite);
+      if (mode === 'autoSym'){
+        const span = Math.max(Math.abs(vmin), Math.abs(vmax));
+        const [defLo, defHi] = getFixedDomain(baseline);
+        return [-Math.max(span, Math.abs(defLo)), Math.max(span, Math.abs(defHi))];
       }
-      const [lo, hi] = [Math.min(vmin, 0), Math.max(vmax, 0)];
-      const [f0,f1] = getFixedDomain(baseline);
-      return [Math.min(lo, f0), Math.max(hi, f1)];
+      const [defLo, defHi] = getFixedDomain(baseline);
+      return [Math.min(vmin, defLo, 0), Math.max(vmax, defHi, 0)];
     }
 
     function clampDomainForBars(domain, limit = BAR_DOMAIN_LIMIT){
@@ -243,7 +241,11 @@
     // ---------- Utils ----------
     const makeKey = (city, cc) => `${city}\u2502${cc || ''}`;
     const splitKey = (key) => { const i = key.lastIndexOf('\u2502'); return i >= 0 ? [key.slice(0, i), key.slice(i+1)] : [key, '']; };
-    const toBlueRed = (v, domain) => { const [vmin, vmax] = domain; const t = (v - vmin) / (vmax - vmin); return d3.interpolateRdBu(1 - Math.max(0, Math.min(1, t))); };
+    const toBlueRed = (v, domain) => {
+      const [vmin, vmax] = domain;
+      const t = (v - vmin) / (vmax - vmin || 1);
+      return d3.interpolateRdBu(1 - Math.max(0, Math.min(1, t)));
+    };
     const slug = (s) => String(s||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'');
     const escapeHtml = (s) => String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const axisTicks = (domain) => {
@@ -260,12 +262,16 @@
     const MINUS = '\u2212';
     const fmtTick = (v) => {
       if (!Number.isFinite(v)) return '';
-      const abs = Math.abs(v);
-      const formatted = abs.toFixed(1);
-      if (abs < 1e-4) return '0.0';
-      return v < 0 ? `${MINUS}${formatted}` : formatted;
+      if (Math.abs(v) < 1e-4) return '0';
+      return v < 0 ? `${MINUS}${Math.abs(v).toFixed(0)}` : v.toFixed(0);
     };
-    function forEachBand(n, x0, w, draw){ for (let i=0;i<n;i++){ const xStart = x0 + Math.floor(i * w / n); const xEnd = x0 + Math.floor((i + 1) * w / n); draw(i, xStart, Math.max(1, Math.abs(xEnd - xStart))); } }
+    function forEachBand(n, x0, w, draw){
+      for (let i=0;i<n;i++){
+        const xStart = x0 + Math.floor(i * w / n);
+        const xEnd = x0 + Math.floor((i + 1) * w / n);
+        draw(i, xStart, Math.max(1, Math.abs(xEnd - xStart)));
+      }
+    }
 
     // ---------- File lists ----------
     const LONG_PARTS = [
@@ -281,72 +287,43 @@
       SON: ['stripes_seasonal_SON_part1.csv', 'stripes_seasonal_SON_part2.csv']
     };
 
-    // ---------- Robust fetch helpers ----------
-    const FETCH_TIMEOUT_MS = 30000;
-
-    async function fetchTextWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS){
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(new Error('Timeout')), timeoutMs);
-      try{
-        const resp = await fetch(url, { signal: controller.signal, cache: 'no-cache' });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-        let txt = await resp.text();
-        // Strip UTF-8 BOM if present (can break CSV header)
-        if (txt && txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1);
-        return txt;
-      } finally {
-        clearTimeout(id);
-      }
-    }
-
-    async function loadCsvText(path){
-      // use relative URLs with cache-busting
-      const url = `${path}${path.includes('?') ? '' : ('?cb=' + Date.now())}`;
-      return await fetchTextWithTimeout(url);
-    }
-
-    async function loadLocalCsv(filename, rowParser){
-      const url = `${SPLIT_DIR}${filename}`;
-      const txt = await loadCsvText(url);
-      let rows;
-      try{
-        rows = d3.csvParse(txt, rowParser);
-      }catch(e){
-        throw new Error(`CSV parse failed: ${url} — ${e.message || e}`);
-      }
-      if (!rows || !rows.length) throw new Error(`Parsed 0 rows: ${url}`);
+    // ---------- CSV helpers ----------
+    async function fetchCsv(path, rowParser){
+      const resp = await fetch(path, { cache: 'no-cache' });
+      if (!resp.ok) throw new Error(`Failed to fetch ${path} (${resp.status})`);
+      let text = await resp.text();
+      if (text && text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+      const rows = d3.csvParse(text, rowParser);
+      if (!rows || !rows.length) throw new Error(`No rows in ${path}`);
       return rows;
     }
 
     async function loadAllParts(parts, rowParser, label){
-      const all = [];
-      if (IS_MOBILE) {
-        // sequential on mobile to reduce memory spikes
-        for (const p of parts){
-          try{
-            const rows = await loadLocalCsv(p, rowParser);
-            for (let i=0;i<rows.length;i++) all.push(rows[i]);
-          }catch(e){
-            throw new Error(`[${label}] ${e.message}`);
-          }
+      const datasets = [];
+      for (const part of parts){
+        try{
+          const rows = await fetchCsv(`${SPLIT_DIR}${part}`, rowParser);
+          datasets.push(...rows);
+        }catch(err){
+          throw new Error(`[${label}] ${err?.message || err}`);
         }
-      } else {
-        const results = await Promise.all(parts.map(p =>
-          loadLocalCsv(p, rowParser).catch(e => { throw new Error(`[${label}] ${e.message}`); })
-        ));
-        for (const rows of results){ for (let i=0;i<rows.length;i++) all.push(rows[i]); }
       }
-      if (!all.length) throw new Error(`[${label}] No rows after merging parts`);
-      return all;
+      if (!datasets.length) throw new Error(`[${label}] empty after merge`);
+      return datasets;
     }
 
     // ---------- State & DOM ----------
     const state = {
-      meta: [], metaIndex: new Map(),
-      dataCache: new Map(),     // season -> payload
-      loadedSeasons: new Set(), // which seasons are loaded
-      selCountry: 'ALL', selKey: null,
-      season: 'ANNUAL', mode: 'bars', baseline: '1850-1900', scaleMode: 'fixed'
+      meta: [],
+      metaIndex: new Map(),
+      dataCache: new Map(),
+      loadedSeasons: new Set(),
+      selCountry: 'ALL',
+      selKey: null,
+      season: 'ANNUAL',
+      mode: 'bars',
+      baseline: '1850-1900',
+      scaleMode: 'fixed'
     };
 
     const el = {
@@ -389,8 +366,8 @@
 
     // ---------- Loaders (metadata + lazy seasons) ----------
     async function loadMetadata(){
-      const txt = await loadCsvText(META_PATH);
-      const meta = d3.csvParse(txt, parseMeta).filter(validMeta);
+      const rows = await fetchCsv(META_PATH, parseMeta);
+      const meta = rows.filter(validMeta);
       if (!meta.length) throw new Error(`${META_PATH} parsed 0 rows`);
       state.meta = meta;
       state.metaIndex.clear(); for (const m of meta){ state.metaIndex.set(makeKey(m.city, m.country_code), m); }
@@ -399,12 +376,7 @@
     async function loadAnnualIfNeeded(){
       if (state.loadedSeasons.has('ANNUAL')) return;
       el.loadingText && (el.loadingText.textContent = 'Loading annual data…');
-      const a1 = await loadLocalCsv('stripes_long_clean_part1.csv', parseRowFlexible);
-      const a2 = await loadLocalCsv('stripes_long_clean_part2.csv', parseRowFlexible);
-      const a3 = await loadLocalCsv('stripes_long_clean_part3.csv', parseRowFlexible);
-      const a4 = await loadLocalCsv('stripes_long_clean_part4.csv', parseRowFlexible);
-      if (!a1.length || !a2.length || !a3.length || !a4.length) throw new Error('Annual parts missing rows — check all 4 files exist and are non-empty.');
-      const rows = a1.concat(a2, a3, a4);
+      const rows = await loadAllParts(LONG_PARTS, parseRowFlexible, 'ANNUAL');
       const annual = buildPayload(rows);
       state.dataCache.set('ANNUAL', annual);
       state.loadedSeasons.add('ANNUAL');

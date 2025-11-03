@@ -505,24 +505,68 @@
       el.search.addEventListener('input', tryApplySearch);
 
       el.downloadBtn.addEventListener('click', () => {
-        const canvas = el.canvasA;
-        // Downscale on mobile to keep toDataURL stable
-        if (IS_MOBILE && canvas.width > 2200) {
-          const off = document.createElement('canvas');
-          const scale = 2000 / canvas.width;
-          off.width = Math.floor(canvas.width * scale);
-          off.height = Math.floor(canvas.height * scale);
-          const ctx = off.getContext('2d');
-          ctx.drawImage(canvas, 0, 0, off.width, off.height);
-          const a = document.createElement('a');
-          a.href = off.toDataURL('image/png');
-          const [city, cc] = splitKey(state.selKey || 'city\u2502CC');
-          a.download = `climate_${state.mode}_${slug(city)}_${cc}_${state.season}_${state.baseline}.png`;
-          document.body.appendChild(a); a.click(); a.remove();
-          return;
+        const source = el.canvasA;
+        if (!source) return;
+
+        let targetWidth = source.width;
+        let targetHeight = source.height;
+        if (IS_MOBILE && targetWidth > 2200) {
+          const scale = 2000 / targetWidth;
+          targetWidth = Math.floor(targetWidth * scale);
+          targetHeight = Math.floor(targetHeight * scale);
         }
+
+        const title = (el.titleA?.textContent || '').trim();
+        const meta = (el.metaA?.textContent || '').trim();
+        const yearsInfo = (el.yearsA?.textContent || '').trim();
+
+        const paddingX = Math.max(20, Math.round(targetWidth * 0.035));
+        const paddingTop = Math.max(24, Math.round(targetWidth * 0.02));
+        const titleSize = Math.max(26, Math.round(targetWidth * 0.028));
+        const metaSize = Math.max(18, Math.round(targetWidth * 0.016));
+        const yearsSize = Math.max(16, Math.round(targetWidth * 0.014));
+        const titleGap = Math.round(titleSize * 0.4);
+        const metaGap = Math.round(metaSize * 0.6);
+
+        const headerHeight = paddingTop + titleSize + titleGap + (meta ? metaSize + metaGap : 0) + (yearsInfo ? yearsSize : 0) + paddingTop;
+
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = targetWidth;
+        exportCanvas.height = targetHeight + headerHeight;
+        const ctx = exportCanvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.fillStyle = '#0b0c0c';
+        ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+        ctx.fillStyle = '#e8eaed';
+        ctx.textBaseline = 'top';
+        ctx.font = `600 ${titleSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+        ctx.fillText(title || 'City climate stripes', paddingX, paddingTop);
+
+        let textCursor = paddingTop + titleSize + titleGap;
+        if (meta) {
+          ctx.font = `${metaSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+          ctx.fillText(meta, paddingX, textCursor);
+          textCursor += metaSize + metaGap;
+        }
+        if (yearsInfo) {
+          ctx.font = `${yearsSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+          ctx.fillText(yearsInfo, paddingX, textCursor);
+          textCursor += yearsSize + paddingTop;
+        } else {
+          textCursor += paddingTop;
+        }
+
+        ctx.drawImage(
+          source,
+          0, 0, source.width, source.height,
+          0, headerHeight,
+          targetWidth, targetHeight
+        );
+
         const a = document.createElement('a');
-        a.href = canvas.toDataURL('image/png');
+        a.href = exportCanvas.toDataURL('image/png');
         const [city, cc] = splitKey(state.selKey || 'city\u2502CC');
         a.download = `climate_${state.mode}_${slug(city)}_${cc}_${state.season}_${state.baseline}.png`;
         document.body.appendChild(a); a.click(); a.remove();

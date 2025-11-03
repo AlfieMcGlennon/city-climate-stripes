@@ -288,25 +288,56 @@
     };
 
     // ---------- CSV helpers ----------
-    async function fetchCsv(path, rowParser){
-      const resp = await fetch(path, { cache: 'no-cache' });
-      if (!resp.ok) throw new Error(`Failed to fetch ${path} (${resp.status})`);
-      let text = await resp.text();
-      if (text && text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-      const rows = d3.csvParse(text, rowParser);
-      if (!rows || !rows.length) throw new Error(`No rows in ${path}`);
+    const FETCH_TIMEOUT_MS = 30000;
+
+    async function fetchTextWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS){
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(new Error('Timeout')), timeoutMs);
+      try {
+        const resp = await fetch(url, { signal: controller.signal, cache: 'no-cache' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+        let txt = await resp.text();
+        if (txt && txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1);
+        return txt;
+      } finally {
+        clearTimeout(id);
+      }
+    }
+
+    async function loadCsvText(path){
+      const url = `${path}${path.includes('?') ? '' : ('?cb=' + Date.now())}`;
+      return await fetchTextWithTimeout(url);
+    }
+
+    async function loadLocalCsv(filename, rowParser){
+      const url = `${SPLIT_DIR}${filename}`;
+      const txt = await loadCsvText(url);
+      let rows;
+      try {
+        rows = d3.csvParse(txt, rowParser);
+      } catch (e) {
+        throw new Error(`CSV parse failed: ${url} — ${e.message || e}`);
+      }
+      if (!rows || !rows.length) throw new Error(`Parsed 0 rows: ${url}`);
       return rows;
     }
 
     async function loadAllParts(parts, rowParser, label){
       const datasets = [];
-      for (const part of parts){
-        try{
-          const rows = await fetchCsv(`${SPLIT_DIR}${part}`, rowParser);
-          datasets.push(...rows);
-        }catch(err){
-          throw new Error(`[${label}] ${err?.message || err}`);
+      if (IS_MOBILE) {
+        for (const part of parts){
+          try {
+            const rows = await loadLocalCsv(part, rowParser);
+            datasets.push(...rows);
+          } catch (err) {
+            throw new Error(`[${label}] ${err?.message || err}`);
+          }
         }
+      } else {
+        const results = await Promise.all(parts.map(part =>
+          loadLocalCsv(part, rowParser).catch(err => { throw new Error(`[${label}] ${err?.message || err}`); })
+        ));
+        for (const rows of results) datasets.push(...rows);
       }
       if (!datasets.length) throw new Error(`[${label}] empty after merge`);
       return datasets;
@@ -366,7 +397,13 @@
 
     // ---------- Loaders (metadata + lazy seasons) ----------
     async function loadMetadata(){
-      const rows = await fetchCsv(META_PATH, parseMeta);
+      const txt = await loadCsvText(META_PATH);
+      let rows;
+      try {
+        rows = d3.csvParse(txt, parseMeta);
+      } catch (err) {
+        throw new Error(`Metadata parse failed: ${err?.message || err}`);
+      }
       const meta = rows.filter(validMeta);
       if (!meta.length) throw new Error(`${META_PATH} parsed 0 rows`);
       state.meta = meta;
@@ -376,7 +413,13 @@
     async function loadAnnualIfNeeded(){
       if (state.loadedSeasons.has('ANNUAL')) return;
       el.loadingText && (el.loadingText.textContent = 'Loading annual data…');
-      const rows = await loadAllParts(LONG_PARTS, parseRowFlexible, 'ANNUAL');
+      const rows = [];
+      for (const part of LONG_PARTS){
+        const chunk = await loadLocalCsv(part, parseRowFlexible);
+        if (!chunk.length) throw new Error(`Annual part missing rows: ${part}`);
+        rows.push(...chunk);
+      }
+      if (!rows.length) throw new Error('Annual data merged to 0 rows.');
       const annual = buildPayload(rows);
       state.dataCache.set('ANNUAL', annual);
       state.loadedSeasons.add('ANNUAL');

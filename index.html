@@ -165,7 +165,7 @@
     </article>
 
     <p class="footer">
-  Author: 
+  Author:
   <strong>
     <a href="https://www.linkedin.com/in/alfred-mcglennon-927589253/" target="_blank" rel="noopener">
       Alfie McGlennon
@@ -196,6 +196,7 @@
     const STRIPES_HEIGHT = 240;
     const AXIS_BAND_H    = 24;
     const MARGIN = { top: 10, right: 10, bottom: AXIS_BAND_H + 8, left: 50 };
+    const BAR_DOMAIN_LIMIT = 4; // soften bar axis range so outliers don't squash everything else
     function getFixedDomain(baseline){ return baseline === '1961-2010' ? [-1.5, 1.5] : [-2.0, 2.0]; }
 
     function computeDomain(values, baseline, mode){
@@ -213,14 +214,59 @@
       return [Math.min(lo, f0), Math.max(hi, f1)];
     }
 
+    function clampDomainForBars(domain, limit = BAR_DOMAIN_LIMIT){
+      if (!domain || domain.length !== 2) return domain;
+      let [lo, hi] = domain;
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return domain;
+      if (Math.abs(lo) <= limit && Math.abs(hi) <= limit) return domain;
+      lo = Math.max(lo, -limit);
+      hi = Math.min(hi, limit);
+      if (lo >= hi){
+        const span = Math.min(limit, Math.max(Math.abs(domain[0]), Math.abs(domain[1])) || limit);
+        lo = -span;
+        hi = span;
+      }
+      return [lo, hi];
+    }
+
     // ---------- Utils ----------
     const makeKey = (city, cc) => `${city}\u2502${cc || ''}`;
     const splitKey = (key) => { const i = key.lastIndexOf('\u2502'); return i >= 0 ? [key.slice(0, i), key.slice(i+1)] : [key, '']; };
     const toBlueRed = (v, domain) => { const [vmin, vmax] = domain; const t = (v - vmin) / (vmax - vmin); return d3.interpolateRdBu(1 - Math.max(0, Math.min(1, t))); };
     const slug = (s) => String(s||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'');
-    const escapeHtml = (s) => String(s).replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'" :'&#39;'}[ch]));
-    const niceTicks = (L) => { L = Math.abs(L); return [-L,-L/2,0,L/2,L]; }
-    const fmtTick = (v) => (Math.abs(v) >= 1 ? v.toFixed(0) : v.toFixed(1)).replace(/-0\.0?/, '0');
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const axisTicks = (domain, desired = 5) => {
+      const [lo, hi] = domain;
+      if (!(Number.isFinite(lo) && Number.isFinite(hi))) return [0];
+      if (lo === hi) return [lo];
+
+      const EPS = 1e-6;
+      const scale = d3.scaleLinear().domain([lo, hi]);
+      const ticks = scale.ticks(desired);
+      const filtered = [];
+
+      for (const t of ticks){
+        if (t + EPS < lo || t - EPS > hi) continue;
+        filtered.push(Math.abs(t) < EPS ? 0 : t);
+      }
+
+      if (lo < 0 && hi > 0 && !filtered.some((t) => Math.abs(t) < EPS)) filtered.push(0);
+      filtered.sort((a,b)=>a-b);
+
+      return filtered.length ? Array.from(new Set(filtered)) : [lo, hi];
+    };
+    const NF_INT = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    const NF_DEC = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const MINUS = '\u2212';
+    const fmtTick = (v) => {
+      if (!Number.isFinite(v)) return '';
+      const abs = Math.abs(v);
+      const isFractional = Math.abs(v - Math.round(v)) > 1e-4;
+      const formatter = (abs < 1 || isFractional) ? NF_DEC : NF_INT;
+      if (abs < 1e-4) return '0';
+      const formatted = formatter.format(abs);
+      return v < 0 ? `${MINUS}${formatted}` : formatted;
+    };
     function forEachBand(n, x0, w, draw){ for (let i=0;i<n;i++){ const xStart = x0 + Math.floor(i * w / n); const xEnd = x0 + Math.floor((i + 1) * w / n); draw(i, xStart, Math.max(1, Math.abs(xEnd - xStart))); } }
 
     // ---------- File lists ----------
@@ -522,7 +568,7 @@
       const x0=MARGIN.left, y0=MARGIN.top, w=widthPx-MARGIN.left-MARGIN.right, h=BARS_INNER_H; const n=Math.max(1, years.length);
       const y = d3.scaleLinear().domain([domain[1], domain[0]]).range([y0, y0+h]).clamp(true); const yZero = y(0);
 
-      const ticks = niceTicks(domain[1]);
+      const ticks = axisTicks(domain);
       ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.lineWidth=1;
       for (const t of ticks){ const yy=y(t); ctx.beginPath(); ctx.moveTo(x0,yy); ctx.lineTo(x0+w,yy); ctx.stroke(); }
 
@@ -590,7 +636,8 @@
       const years = obj?.years || [];
       const values = (state.baseline==='1850-1900') ? (obj?.a1 || []) : (obj?.a2 || []);
 
-      const domain = computeDomain(values, state.baseline, state.scaleMode);
+      let domain = computeDomain(values, state.baseline, state.scaleMode);
+      if (state.mode === 'bars') domain = clampDomainForBars(domain);
       let clipped = 0; for(const v of values){ if(Number.isFinite(v) && (v<domain[0] || v>domain[1])) clipped++; }
       updateLegend(domain, clipped);
 
